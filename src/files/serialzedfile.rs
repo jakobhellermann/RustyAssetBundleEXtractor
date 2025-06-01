@@ -18,15 +18,15 @@ pub struct SerializedFileHeader {
     unknown: i64,
 }
 impl SerializedFileHeader {
-    fn from_reader<T: std::io::Read + std::io::Seek, B: ByteOrder>(
+    fn from_reader<T: std::io::Read + std::io::Seek>(
         reader: &mut T,
         config: &crate::config::ExtractionConfig,
     ) -> Result<SerializedFileHeader, std::io::Error> {
         let mut header = SerializedFileHeader {
-            m_MetadataSize: reader.read_u32::<B>()?,
-            m_FileSize: reader.read_u32::<B>()? as i64,
-            m_Version: reader.read_u32::<B>()?,
-            m_DataOffset: reader.read_u32::<B>()? as i64,
+            m_MetadataSize: reader.read_u32::<BigEndian>()?,
+            m_FileSize: reader.read_u32::<BigEndian>()? as i64,
+            m_Version: reader.read_u32::<BigEndian>()?,
+            m_DataOffset: reader.read_u32::<BigEndian>()? as i64,
             m_Endianess: 0,
             m_Reserved: [0, 0, 0],
             unknown: 0,
@@ -43,25 +43,12 @@ impl SerializedFileHeader {
         }
 
         if header.m_Version >= 22 {
-            match header.m_Endianess {
-                0 => header.read_large_file_header::<T, LittleEndian>(reader, config)?,
-                1 => header.read_large_file_header::<T, BigEndian>(reader, config)?,
-                _ => panic!("Invalid endianess"),
-            };
+            header.m_MetadataSize = reader.read_u32::<BigEndian>()?;
+            header.m_FileSize = reader.read_i64::<BigEndian>()?;
+            header.m_DataOffset = reader.read_i64::<BigEndian>()?;
+            header.unknown = reader.read_i64::<BigEndian>()?; // unknown
         };
         Ok(header)
-    }
-
-    fn read_large_file_header<T: std::io::Read + std::io::Seek, B: ByteOrder>(
-        &mut self,
-        reader: &mut T,
-        config: &crate::config::ExtractionConfig,
-    ) -> Result<(), std::io::Error> {
-        self.m_MetadataSize = reader.read_u32::<B>()?;
-        self.m_FileSize = reader.read_i64::<B>()?;
-        self.m_DataOffset = reader.read_i64::<B>()?;
-        self.unknown = reader.read_i64::<B>()?; // unknown
-        Ok(())
     }
 }
 
@@ -407,7 +394,7 @@ impl SerializedFile {
         reader: &mut T,
         config: &crate::config::ExtractionConfig,
     ) -> Result<SerializedFile, std::io::Error> {
-        let header = SerializedFileHeader::from_reader::<T, BigEndian>(reader, config)?;
+        let header = SerializedFileHeader::from_reader::<T>(reader, config)?;
 
         match header.m_Endianess {
             0 => SerializedFile::from_reader_endianed::<T, LittleEndian>(reader, header, config),
