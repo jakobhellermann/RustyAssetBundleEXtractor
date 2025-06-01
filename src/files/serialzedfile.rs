@@ -1,3 +1,5 @@
+use std::fmt::Write as _;
+
 use super::UnityFile;
 use crate::typetree::TypeTreeNode;
 use crate::{
@@ -54,7 +56,7 @@ impl SerializedFileHeader {
 
 #[derive(Debug, Clone)]
 pub struct SerializedType {
-    pub m_ClassID: i32,
+    pub m_ClassID: ClassId,
     pub m_IsStrippedType: bool,
     pub m_ScriptTypeIndex: i16,
     pub m_ScriptID: [u8; 16],
@@ -75,7 +77,7 @@ impl SerializedType {
         isRefType: bool,
     ) -> Result<SerializedType, std::io::Error> {
         let mut typ = SerializedType {
-            m_ClassID: -1,
+            m_ClassID: ClassId::UnknownType,
             m_IsStrippedType: false,
             m_ScriptTypeIndex: -1,
             m_ScriptID: [0; 16],
@@ -86,7 +88,7 @@ impl SerializedType {
             m_AsmName: None,
             m_TypeDependencies: Vec::new(),
         };
-        typ.m_ClassID = reader.read_i32::<B>()?;
+        typ.m_ClassID = ClassId(reader.read_i32::<B>()?);
 
         if header.m_Version >= SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits() {
             typ.m_IsStrippedType = reader.read_bool()?;
@@ -99,10 +101,10 @@ impl SerializedType {
         if header.m_Version >= SerializedFileFormatVersion::HAS_TYPE_TREE_HASHES.bits() {
             if (isRefType && typ.m_ScriptTypeIndex >= 0)
                 || ((header.m_Version < SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits()
-                    && typ.m_ClassID < 0)
+                    && typ.m_ClassID.0 < 0)
                     || (header.m_Version
                         >= SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits()
-                        && typ.m_ClassID == 114))
+                        && typ.m_ClassID.0 == crate::objects::map::MonoBehaviour))
             {
                 typ.m_ScriptID = reader.read_bytes_sized(16)?.as_slice().try_into().unwrap();
             }
@@ -157,13 +159,29 @@ impl LocalSerializedObjectIdentifier {
     }
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ClassId(pub i32);
+
+impl std::fmt::Debug for ClassId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match crate::objects::map::CLASS_ID_NAME.get(&self.0) {
+            Some(x) => {
+                f.write_char('\'')?;
+                f.write_str(x)?;
+                f.write_char('\'')
+            }
+            None => write!(f, "{}", self.0),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ObjectInfo {
     pub m_PathID: i64,
     pub m_Offset: i64,
     pub m_Size: u32,
     pub m_TypeID: i32,
-    pub m_ClassID: i32,
+    pub m_ClassID: ClassId,
     pub m_IsDestroyed: Option<u16>,
     pub m_ScriptTypeIndex: Option<i16>,
     pub m_Stripped: Option<u8>,
@@ -180,7 +198,7 @@ impl ObjectInfo {
             m_Offset: 0,
             m_Size: 0,
             m_TypeID: 0,
-            m_ClassID: 0,
+            m_ClassID: ClassId(0),
             m_IsDestroyed: None,
             m_ScriptTypeIndex: None,
             m_Stripped: None,
@@ -203,7 +221,7 @@ impl ObjectInfo {
         objectInfo.m_Size = reader.read_u32::<B>()?;
         objectInfo.m_TypeID = reader.read_i32::<B>()?;
         if header.m_Version < SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits() {
-            objectInfo.m_ClassID = reader.read_u16::<B>()? as i32;
+            objectInfo.m_ClassID = ClassId(reader.read_u16::<B>()? as i32);
         } else {
             objectInfo.m_ClassID = types[objectInfo.m_TypeID as usize].m_ClassID;
         }
@@ -254,9 +272,22 @@ impl ScriptType {
 #[derive(Debug, Clone)]
 pub struct FileIdentifier {
     tempEmpty: Option<String>,
-    guid: Option<Vec<u8>>,
+    guid: Option<Guid>,
     typeId: Option<i32>,
     pathName: String,
+}
+
+#[derive(Clone)]
+pub struct Guid(pub Vec<u8>);
+
+impl std::fmt::Debug for Guid {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str("Guid(")?;
+        for byte in &self.0 {
+            write!(f, "{:02x}", byte)?;
+        }
+        f.write_str(")")
+    }
 }
 
 impl FileIdentifier {
@@ -271,7 +302,7 @@ impl FileIdentifier {
                 None
             },
             guid: if header.m_Version >= SerializedFileFormatVersion::UNKNOWN_5.bits() {
-                Some(reader.read_bytes_sized(16)?)
+                Some(Guid(reader.read_bytes_sized(16)?))
             } else {
                 None
             },
