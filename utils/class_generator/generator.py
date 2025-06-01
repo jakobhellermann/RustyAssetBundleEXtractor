@@ -121,7 +121,7 @@ class AllClassHandler:
         enum_to_create = []
 
         def format_name(name: str):
-            return re.sub("[<>\(\), ]", "_", name.strip("<>()"))
+            return re.sub(r'[<>\(\), ]', "_", name.strip("<>()"))
 
         for full_enum, enum_typ in enums:
             enum_name = f"Enum_{format_name(enum_typ)}"
