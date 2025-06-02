@@ -1,6 +1,5 @@
-use std::fmt::Write as _;
-
 use super::UnityFile;
+use crate::objects::ClassId;
 use crate::typetree::TypeTreeNode;
 use crate::{
     config::ExtractionConfig,
@@ -117,7 +116,7 @@ impl SerializedType {
                     && typ.m_ClassID.0 < 0)
                     || (header.m_Version
                         >= SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits()
-                        && typ.m_ClassID.0 == crate::objects::map::MonoBehaviour))
+                        && typ.m_ClassID == ClassId::MonoBehaviour))
             {
                 typ.m_ScriptID = reader.read_bytes_sized(16)?.as_slice().try_into().unwrap();
             }
@@ -169,22 +168,6 @@ impl LocalSerializedObjectIdentifier {
                 reader.read_i64::<B>()?
             },
         })
-    }
-}
-
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ClassId(pub i32);
-
-impl std::fmt::Debug for ClassId {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match crate::objects::map::CLASS_ID_NAME.get(&self.0) {
-            Some(x) => {
-                f.write_char('\'')?;
-                f.write_str(x)?;
-                f.write_char('\'')
-            }
-            None => write!(f, "{}", self.0),
-        }
     }
 }
 
