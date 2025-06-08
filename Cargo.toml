@@ -18,6 +18,8 @@ license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/UniversalGameExtraction/RustyAssetBundleEXtractor"
 
+[features]
+generated = []
 
 [dependencies]
 # Binary Reader/Write - https://crates.io/crates/binary-reader

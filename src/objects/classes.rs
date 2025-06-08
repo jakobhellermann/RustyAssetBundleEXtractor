@@ -1,4 +1,5 @@
 #![allow(warnings)]
+#![cfg(feature = "generated")]
 use crate::objects::PPtr;
 use serde::{Deserialize, Serialize};
 
