@@ -102,6 +102,7 @@ class AllClassHandler:
         f.writelines(
             [
                 "#![allow(warnings)]\n",
+                "#![cfg(feature = \"generated\")]\n",
                 "use crate::objects::PPtr;\n",
                 "use serde::{Deserialize, Serialize};\n",
                 "\n",
