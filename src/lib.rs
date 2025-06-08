@@ -10,6 +10,7 @@ pub mod read_ext;
 pub mod tpk;
 pub mod typetree;
 pub mod unity_version;
+pub mod serde_typetree;
 
 mod archive_storage_manager;
 // mod test;
