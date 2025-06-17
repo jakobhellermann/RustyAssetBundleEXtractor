@@ -1,7 +1,7 @@
 #![allow(warnings)]
 #![cfg(feature = "generated")]
 use crate::objects::PPtr;
-use serde::{Deserialize, Serialize};
+use serde_derive::{Deserialize, Serialize};
 
 /// AABB is a sub class of the Unity engine since version 3.4.0.
 #[derive(Debug, Serialize, Deserialize)]
