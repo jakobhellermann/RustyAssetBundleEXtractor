@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use super::UnityFile;
 use crate::objects::ClassId;
 use crate::serde_typetree;
@@ -426,7 +428,7 @@ pub struct SerializedFile {
     pub m_TargetPlatform: Option<i32>,
     pub m_bigIDEnabled: Option<i32>,
     pub m_Types: Vec<SerializedType>,
-    pub m_Objects: Vec<ObjectInfo>,
+    pub m_Objects: BTreeMap<i64, ObjectInfo>,
     pub m_ScriptTypes: Option<Vec<ScriptType>>,
     pub m_Externals: Vec<FileIdentifier>,
     pub m_RefTypes: Option<Vec<SerializedType>>,
@@ -434,6 +436,10 @@ pub struct SerializedFile {
 }
 
 impl SerializedFile {
+    pub fn get_object(&self, path_id: i64) -> Option<&ObjectInfo> {
+        self.m_Objects.get(&path_id)
+    }
+
     pub fn from_reader<T: std::io::Read + std::io::Seek>(
         reader: &mut T,
     ) -> Result<SerializedFile, std::io::Error> {
@@ -491,8 +497,11 @@ impl SerializedFile {
 
         // Read Objects
         let objectCount = reader.read_i32::<B>()?;
-        let m_Objects: Vec<ObjectInfo> = (0..objectCount)
-            .map(|_| ObjectInfo::from_reader::<T, B>(reader, &header, m_bigIDEnabled, &m_Types))
+        let m_Objects: BTreeMap<i64, ObjectInfo> = (0..objectCount)
+            .map(|_| {
+                ObjectInfo::from_reader::<T, B>(reader, &header, m_bigIDEnabled, &m_Types)
+                    .map(|obj| (obj.m_PathID, obj))
+            })
             .collect::<Result<_, _>>()?;
 
         let m_ScriptTypes = None;
