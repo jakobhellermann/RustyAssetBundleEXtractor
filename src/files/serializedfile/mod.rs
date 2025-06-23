@@ -969,6 +969,7 @@ impl SerializedFile {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub enum Error {
     NoTypetree(ClassId),
     Deserialize(serde_typetree::Error),
