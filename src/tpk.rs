@@ -25,8 +25,8 @@
 //! the `embed-tpk` feature, using TPK to look up types is as easy as
 //! ```rust
 //! # use rabex::tpk::TpkTypeTreeBlob;
-//! # use rabex::typetree_cache::TypeTreeCache;
-//! # use rabex::files::serializedfile::TypeTreeProvider;
+//! # use rabex::typetree::TypeTreeCache;
+//! # use rabex::typetree::TypeTreeProvider;
 //! # use rabex::objects::ClassId;
 //! # let unity_version = "2020.2.2f1".parse().unwrap();
 //! let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
