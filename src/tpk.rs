@@ -172,6 +172,15 @@ impl TpkFile {
     }
 }
 
+impl TpkTypeTreeBlob {
+    #[cfg(feature = "embed-tpk")]
+    pub fn embedded() -> Self {
+        let bytes = include_bytes!("../resources/lz4.tpk");
+        let tpk_file = TpkFile::from_reader(&mut bytes.as_slice()).unwrap();
+        tpk_file.as_type_tree().unwrap().unwrap()
+    }
+}
+
 #[repr(u8)]
 #[derive(Debug, Clone, TryFromPrimitive)]
 pub enum TpkCompressionType {
