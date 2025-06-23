@@ -19,8 +19,10 @@ readme = "README.md"
 repository = "https://github.com/UniversalGameExtraction/RustyAssetBundleEXtractor"
 
 [features]
+default = ["embed-tpk"]
 generated = []
 formats = ["dep:serde_json", "dep:serde_yaml", "dep:rmp"]
+embed-tpk = []
 serde_path_to_error = ["dep:serde_path_to_error"]
 tpk-compression-brotli = ["dep:brotli"]
 
