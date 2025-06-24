@@ -25,6 +25,8 @@ embed-tpk = ["compression-lz4"]
 serde_path_to_error = ["dep:serde_path_to_error"]
 tpk-compression-brotli = ["dep:brotli"]
 
+unitycn = ["dep:cbc", "dep:aes"]
+
 compression-all = ["compression-lzma", "compression-lz4", "compression-lz4hc"]
 compression-lz4hc = ["dep:lz4"]
 compression-lz4 = ["dep:lz4_flex"]
@@ -72,8 +74,8 @@ bitflags = "2.9"
 num_enum = { version = "0.7", default-features = false }
 
 # UnityCN Encryption
-aes = "0.8.2"
-cbc = "0.1.2"
+aes = { version = "0.8.2", optional = true }
+cbc = { version = "0.1.2", optional = true }
 
 # Object Serialization & Export
 serde = "1.0"
