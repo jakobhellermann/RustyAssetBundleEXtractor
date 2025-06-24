@@ -139,11 +139,18 @@ impl TpkFile {
     pub fn decompress(&self) -> Result<Cow<'_, [u8]>> {
         Ok(match self.compression_type {
             TpkCompressionType::None => Cow::Borrowed(&self.compressed_bytes),
+
+            #[cfg(not(feature = "compression-lz4"))]
+            TpkCompressionType::Lz4 => return Err(Error::UnsupportedCompression("lz4")),
+            #[cfg(feature = "compression-lz4")]
             TpkCompressionType::Lz4 => {
                 lz4_flex::block::decompress(&self.compressed_bytes, self.uncompressed_size as usize)
                     .map_err(|e| Error::Decompression(Box::new(e)))?
                     .into()
             }
+            #[cfg(not(feature = "compression-lzma"))]
+            TpkCompressionType::Lzma => return Err(Error::UnsupportedCompression("lzma")),
+            #[cfg(feature = "compression-lzma")]
             TpkCompressionType::Lzma => {
                 let mut uncompressed = vec![0; self.uncompressed_size as usize];
                 lzma_rs::lzma_decompress_with_options(

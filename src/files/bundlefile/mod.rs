@@ -370,6 +370,14 @@ fn write_block<W: Write>(
         CompressionType::None => {
             writer.write_all(block_data)?;
         }
+        #[cfg(not(feature = "compression-lzma"))]
+        CompressionType::Lzma => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "lz4ma rabex feature flag is not enabled, cannot use it as a compression format",
+            ));
+        }
+        #[cfg(feature = "compression-lzma")]
         CompressionType::Lzma => {
             let mut block_data_reader = block_data;
             lzma_rs::lzma_compress_with_options(
@@ -380,10 +388,26 @@ fn write_block<W: Write>(
                 },
             )?;
         }
+        #[cfg(not(feature = "compression-lz4"))]
+        CompressionType::Lz4 => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "lz4 rabex feature flag is not enabled, cannot use it as a compression format",
+            ));
+        }
+        #[cfg(feature = "compression-lz4")]
         CompressionType::Lz4 => {
             let out = lz4_flex::block::compress(block_data);
             writer.write_all(&out)?;
         }
+        #[cfg(not(feature = "compression-lz4hc"))]
+        CompressionType::Lz4hc => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "lz4hc rabex feature flag is not enabled, cannot use it as a compression format",
+            ));
+        }
+        #[cfg(feature = "compression-lz4hc")]
         CompressionType::Lz4hc => {
             let out = lz4::block::compress(
                 block_data,
@@ -646,10 +670,18 @@ fn decompress_block<R: Read + Seek, W: Write>(
     reader: &mut R,
     writer: &mut W,
     block: &StorageBlock,
-    index: usize,
-    decryptor: Option<&ArchiveStorageDecryptor>,
+    #[allow(unused)] index: usize,
+    #[allow(unused)] decryptor: Option<&ArchiveStorageDecryptor>,
 ) -> Result<(), Error> {
     match CompressionType::try_from(block.flags & 0x3F).unwrap() {
+        #[cfg(not(feature = "compression-lzma"))]
+        CompressionType::Lzma => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "lzma rabex feature flag is not enabled, cannot use it as a compression format",
+            ));
+        }
+        #[cfg(feature = "compression-lzma")]
         CompressionType::Lzma => {
             let compressed = reader.read_bytes_sized(block.compressed_size as usize)?;
             lzma_rs::lzma_decompress_with_options(
@@ -666,6 +698,14 @@ fn decompress_block<R: Read + Seek, W: Write>(
 
             Ok(())
         }
+        #[cfg(not(feature = "compression-lz4"))]
+        CompressionType::Lz4 | CompressionType::Lz4hc => {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                "lz4 rabex feature flag is not enabled, cannot use it as a compression format",
+            ));
+        }
+        #[cfg(feature = "compression-lz4")]
         CompressionType::Lz4 | CompressionType::Lz4hc => {
             let mut compressed = reader.read_bytes_sized(block.compressed_size as usize)?;
 

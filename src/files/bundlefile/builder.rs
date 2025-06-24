@@ -41,7 +41,12 @@ impl BundleFileBuilder {
         BundleFileBuilder {
             version,
             unity_version,
+            #[cfg(feature = "compression-lz4hc")]
             header_compression: CompressionType::Lz4hc,
+            #[cfg(all(not(feature = "compression-lz4hc"), feature = "compression-lz4"))]
+            header_compression: CompressionType::Lz4,
+            #[cfg(all(not(feature = "compression-lz4hc"), not(feature = "compression-lz4")))]
+            header_compression: CompressionType::None,
             uncompressed: Vec::new(),
             dir_infos: Vec::new(),
         }
