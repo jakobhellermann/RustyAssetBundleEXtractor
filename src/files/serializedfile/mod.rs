@@ -10,7 +10,7 @@
 //! use anyhow::Result;
 //! use rabex::files::SerializedFile;
 //! use rabex::objects::{ClassId, ClassIdType, PPtr, TypedPPtr};
-//! use rabex::{tpk::TpkTypeTreeBlob, typetree::TypeTreeCache};
+//! use rabex::{tpk::TpkTypeTreeBlob, typetree::typetree_cache::TypeTreeCache};
 //! use serde_derive::{Deserialize, Serialize};
 //! use std::{fs::File, io::BufReader};
 //!

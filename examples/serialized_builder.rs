@@ -4,7 +4,7 @@ use anyhow::Result;
 use rabex::files::serializedfile::{build_common_offset_map, builder::SerializedFileBuilder};
 use rabex::objects::{ClassId, ClassIdType, PPtr};
 use rabex::tpk::TpkTypeTreeBlob;
-use rabex::typetree::TypeTreeCache;
+use rabex::typetree::typetree_cache::TypeTreeCache;
 use serde_derive::Serialize;
 
 fn main() -> Result<()> {

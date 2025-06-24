@@ -1,10 +1,11 @@
 //! The serialization format used by unity.
 
 mod provider;
-mod typetree_cache;
+
+/// Caching implementations of [`TypeTreeProvider`]
+pub mod typetree_cache;
 
 pub use provider::TypeTreeProvider;
-pub use typetree_cache::TypeTreeCache;
 
 use crate::commonstring::COMMONSTRING;
 use crate::read_ext::ReadUrexExt;

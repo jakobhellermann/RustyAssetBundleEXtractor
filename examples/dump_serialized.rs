@@ -1,5 +1,6 @@
 use anyhow::Result;
-use rabex::{files::SerializedFile, tpk::TpkTypeTreeBlob, typetree::TypeTreeCache};
+use rabex::typetree::typetree_cache::TypeTreeCache;
+use rabex::{files::SerializedFile, tpk::TpkTypeTreeBlob};
 use std::fs::File;
 
 fn main() -> Result<()> {
