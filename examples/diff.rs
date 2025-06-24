@@ -7,7 +7,7 @@ use anyhow::Result;
 use rabex::{
     files::{BundleFile, SerializedFile, bundlefile::ExtractionConfig},
     tpk::TpkTypeTreeBlob,
-    typetree::{TypeTreeCache, TypeTreeProvider},
+    typetree::{TypeTreeProvider, typetree_cache::TypeTreeCache},
 };
 
 fn main() -> Result<()> {

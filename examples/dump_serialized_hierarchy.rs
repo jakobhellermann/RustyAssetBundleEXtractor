@@ -4,7 +4,7 @@ use rabex::{
     files::SerializedFile,
     objects::{ClassId, ClassIdType, TypedPPtr},
     tpk::TpkTypeTreeBlob,
-    typetree::{TypeTreeCache, TypeTreeProvider},
+    typetree::{TypeTreeProvider, typetree_cache::TypeTreeCache},
 };
 use rustc_hash::FxHashMap;
 use serde_derive::{Deserialize, Serialize};

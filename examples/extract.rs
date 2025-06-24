@@ -1,7 +1,7 @@
 use anyhow::Result;
 use rabex::files::bundlefile::BundleFileReader;
 use rabex::tpk::TpkTypeTreeBlob;
-use rabex::typetree::TypeTreeCache;
+use rabex::typetree::typetree_cache::TypeTreeCache;
 use std::fs::{DirBuilder, File};
 use std::io::{Cursor, Write};
 use std::path::Path;

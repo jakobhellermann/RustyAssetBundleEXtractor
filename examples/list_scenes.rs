@@ -4,7 +4,7 @@ use anyhow::Result;
 use rabex::files::SerializedFile;
 use rabex::objects::{ClassId, ClassIdType};
 use rabex::tpk::TpkTypeTreeBlob;
-use rabex::typetree::TypeTreeCache;
+use rabex::typetree::typetree_cache::TypeTreeCache;
 
 fn main() -> Result<()> {
     let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
