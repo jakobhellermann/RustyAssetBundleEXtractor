@@ -1,16 +1,18 @@
+#[cfg_attr(not(feature = "unitycn"), allow(unused))]
 // credits to: https://github.com/Razmoth/CNStudio/blob/master/AssetStudio/CNUnity.cs
 use crate::read_ext::ReadUrexExt;
-use aes::cipher::{BlockEncryptMut, KeyIvInit, block_padding::NoPadding};
-use byteorder::{BigEndian, ReadBytesExt};
-use std::io::{Read, Result, Seek, SeekFrom};
-type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
+use std::io::{Read, Result, Seek};
 
 // #$unity3dchina!@
 const UNITY3D_SIGNATURE: [u8; 16] = [
     35, 36, 117, 110, 105, 116, 121, 51, 100, 99, 104, 105, 110, 97, 33, 64,
 ];
 
+#[cfg(feature = "unitycn")]
 fn decrypt_key(key: [u8; 16], data: [u8; 16], archive_key: [u8; 16]) -> [u8; 16] {
+    type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
+    use aes::cipher::{BlockEncryptMut, KeyIvInit, block_padding::NoPadding};
+
     let mut _archive_key: [u8; 16] = [0; 16];
     _archive_key.copy_from_slice(&archive_key);
     let mut _key: [u8; 16] = [0; 16];
@@ -43,7 +45,11 @@ pub struct ArchiveStorageDecryptor {
 }
 
 impl ArchiveStorageDecryptor {
+    #[cfg(feature = "unitycn")]
     pub fn from_reader<T: Read + Seek>(reader: &mut T, archive_key: [u8; 16]) -> Result<Self> {
+        use byteorder::{BigEndian, ReadBytesExt};
+        use std::io::SeekFrom;
+
         let _unknown = reader.read_u32::<BigEndian>().unwrap();
 
         let info_bytes: [u8; 16] = reader.read_bytes_sized(16)?.try_into().unwrap();
@@ -67,6 +73,12 @@ impl ArchiveStorageDecryptor {
             }
         }
         Ok(ArchiveStorageDecryptor { index, sub })
+    }
+    #[cfg(not(feature = "unitycn"))]
+    pub fn from_reader<T: Read + Seek>(_: &mut T, _: [u8; 16]) -> Result<Self> {
+        Err(std::io::Error::other(
+            "rabex feature unitycn is not enable, cannot decrypt bundle",
+        ))
     }
 
     // Decrypts a StorageBlock in place
