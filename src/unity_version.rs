@@ -75,6 +75,13 @@ impl FromStr for UnityVersion {
             };
             let build_number = &rest[i + 1..];
 
+            let build_number = if let Some((build_number, _)) = build_number.split_once('\n') {
+                // ?? 2020.2.2f1\n2
+                build_number
+            } else {
+                build_number
+            };
+
             Some(UnityVersion {
                 major,
                 minor,
