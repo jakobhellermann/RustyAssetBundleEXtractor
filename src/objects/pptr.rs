@@ -8,9 +8,15 @@ use serde_derive::{Deserialize, Serialize};
 pub type PathId = i64;
 pub type FileId = i32;
 
+/// Pointer to another object in this or an external [`SerializedFile`]
 #[derive(Debug, Serialize, Deserialize, Default, Copy, Clone, PartialEq, Eq)]
 pub struct PPtr {
+    /// The [`SerializedFile`] the referenced object belongs to.
+    ///
+    /// - when `0`, which signals a local PPtr belonging to the same file
+    /// - when nonzero, refers to [`SerializedFile::m_Externals`] at `m_FileId-1`
     pub m_FileID: FileId,
+    /// Can be zero, for a null [`PPtr`]
     pub m_PathID: PathId,
 }
 
@@ -22,6 +28,7 @@ impl PPtr {
         }
     }
 
+    /// [`PPtr`] local to its file.
     pub fn local(path_id: PathId) -> PPtr {
         PPtr::new(0, path_id)
     }
@@ -34,6 +41,7 @@ impl PPtr {
         self == PPtr::null()
     }
 
+    /// Returns `Some` only if `m_PathId` is not 0
     pub fn optional(self) -> Option<PPtr> {
         (self.m_PathID != 0).then_some(self)
     }
@@ -46,6 +54,7 @@ impl PPtr {
         }
     }
 
+    /// Force the [`m_FileId`](PPtr::m_FileID) to be zero.
     pub fn make_local(self) -> PPtr {
         PPtr {
             m_FileID: 0,
@@ -61,6 +70,9 @@ impl PPtr {
         self.is_local().then_some(self)
     }
 
+    /// Get a handled to the object referenced by this `PPtr`.
+    ///
+    /// Only works for local `PPtr`s.
     #[track_caller]
     pub fn deref_local<'a, T>(
         self,
@@ -72,10 +84,16 @@ impl PPtr {
     }
 }
 
+/// Typed pointer to another object in this or an external [`SerializedFile`].
 #[derive(Serialize, Deserialize)]
 pub struct TypedPPtr<T> {
-    pub m_FileID: i32,
-    pub m_PathID: i64,
+    /// The [`SerializedFile`] the referenced object belongs to.
+    ///
+    /// - when `0`, which signals a local PPtr belonging to the same file
+    /// - when nonzero, refers to [`SerializedFile::m_Externals`] at `m_FileId-1`
+    pub m_FileID: FileId,
+    /// Can be zero, for a null [`PPtr`]
+    pub m_PathID: PathId,
     #[serde(skip)]
     marker: PhantomData<T>,
 }
@@ -123,6 +141,7 @@ impl<T> TypedPPtr<T> {
         }
     }
 
+    /// [`PPtr`] local to its file.
     pub fn local(path_id: PathId) -> TypedPPtr<T> {
         TypedPPtr::new(0, path_id)
     }
@@ -135,6 +154,7 @@ impl<T> TypedPPtr<T> {
         self == TypedPPtr::null()
     }
 
+    /// Returns `Some` only if `m_PathId` is not 0
     pub fn optional(self) -> Option<TypedPPtr<T>> {
         (self.m_PathID != 0).then_some(self)
     }
@@ -158,6 +178,9 @@ impl<T> TypedPPtr<T> {
         self.m_FileID == 0
     }
 
+    /// Get a handled to the object referenced by this `PPtr`.
+    ///
+    /// Only works for local `PPtr`s.
     #[track_caller]
     pub fn deref_local<'a>(
         self,
