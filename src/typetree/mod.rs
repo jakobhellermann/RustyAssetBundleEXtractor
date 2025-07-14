@@ -68,16 +68,17 @@ bitflags! {
     }
 }
 
+/// The element type of the type tree.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct TypeTreeNode {
+    pub m_Type: String,
+    pub m_Name: String,
     pub m_Version: i32,
     pub m_Level: u8,
     pub m_TypeFlags: i32,
     pub m_ByteSize: i32,
     pub m_Index: Option<i32>,
     pub m_MetaFlag: Option<i32>,
-    pub m_Type: String,
-    pub m_Name: String,
     //unsigned short children_count,
     //struct TypeTreeNodeObject **children,
     // UnityFS

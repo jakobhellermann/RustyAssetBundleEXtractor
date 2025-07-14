@@ -97,6 +97,7 @@ use byteorder::{LittleEndian, ReadBytesExt};
 use crate::unity_version::{UnityVersion, UnityVersionType};
 use crate::{objects::ClassId, typetree::TypeTreeNode};
 
+/// The TPK container type, contained (possibly compressed) data for the inner format.
 #[derive(Debug, Clone)]
 pub struct TpkFile {
     pub compression_type: TpkCompressionType,
@@ -178,6 +179,7 @@ impl TpkFile {
         })
     }
 
+    /// Reads the inner data in case of [`TpkDataType::TypeTreeInformation`]
     pub fn as_type_tree(&self) -> Result<Option<TpkTypeTreeBlob>> {
         match self.data_type {
             TpkDataType::TypeTreeInformation => {
@@ -192,6 +194,8 @@ impl TpkFile {
 }
 
 impl TpkTypeTreeBlob {
+    /// A type tree blob bundled with the crate. Might not always contain the newest version,
+    /// pleas open an issue if you need a more modern release.
     #[cfg(feature = "embed-tpk")]
     pub fn embedded() -> Self {
         let bytes = include_bytes!("../resources/lz4.tpk");
@@ -226,6 +230,7 @@ pub enum TpkDataType {
     EngineAssets = 5,
 }
 
+/// Size-Optimized store of unity type trees across multiple unity versions.
 #[derive(Debug, Clone)]
 pub struct TpkTypeTreeBlob {
     pub creation_time: i64,
@@ -455,6 +460,8 @@ impl TpkTypeTreeBlob {
         })
     }
 
+    /// Look up and construct a [`TypeTreeNode`] for the class and unity version.
+    /// If you call this method often, consider using [`TpkTypeTreeCache`](crate::typetree::typetree_cache::TypeTreeCache).
     pub fn get_typetree_node(
         &self,
         class_id: ClassId,
@@ -471,7 +478,7 @@ impl TpkTypeTreeBlob {
         self.get_typetree_node_for_class(class, false)
     }
 
-    pub fn get_typetree_node_for_class(
+    fn get_typetree_node_for_class(
         &self,
         class: &UnityClass,
         editor: bool,

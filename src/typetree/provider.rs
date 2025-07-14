@@ -4,6 +4,12 @@ use crate::{UnityVersion, objects::ClassId, tpk::TpkTypeTreeBlob};
 
 use super::TypeTreeNode;
 
+/// Interface for retreiving a type tree for a given [`ClassId`].
+///
+/// It is implemented by [`TpkTypeTreeBlob`](crate::tpk::TpkTypeTreeBlob),
+/// but you should consider using the [`TypeTreeCache`](crate::typetree::typetree_cache::TypeTreeCache)
+/// or it's thread-safe variant [`sync::TypeTreeCache`](crate::typetree::typetree_cache::sync::TypeTreeCache)
+/// for performance reasons.
 pub trait TypeTreeProvider {
     fn get_typetree_node(
         &self,
@@ -13,6 +19,8 @@ pub trait TypeTreeProvider {
 }
 
 impl TypeTreeProvider for TpkTypeTreeBlob {
+    /// Look up and construct a [`TypeTreeNode`] for the class and unity version.
+    /// If you call this method often, consider using [`TpkTypeTreeCache`](crate::typetree::typetree_cache::TypeTreeCache).
     fn get_typetree_node(
         &self,
         class_id: ClassId,

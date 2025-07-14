@@ -5,6 +5,9 @@ use crate::typetree::TypeTreeNode;
 use crate::typetree::TypeTreeProvider;
 use crate::unity_version::UnityVersion;
 
+/// [`TypeTreeProvider`] which caches the results from the underlying provider.
+///
+/// Consider [`sync::TypeTreeCache`] for a thread-safe variant.
 pub struct TypeTreeCache<T> {
     pub inner: T,
     typetree_cache: elsa::FrozenMap<ClassId, Box<Option<TypeTreeNode>>>,
@@ -19,6 +22,7 @@ impl<T: TypeTreeProvider> TypeTreeCache<T> {
 }
 
 impl<T: TypeTreeProvider> TypeTreeProvider for TypeTreeCache<T> {
+    /// Return the cached reference. Will always be [`Cow::Borrowed`].
     fn get_typetree_node(
         &self,
         class_id: ClassId,
@@ -40,6 +44,7 @@ impl<T: TypeTreeProvider> TypeTreeProvider for TypeTreeCache<T> {
     }
 }
 
+/// Thread-safe variant
 pub mod sync {
     use std::borrow::Cow;
 
@@ -48,6 +53,7 @@ pub mod sync {
     use crate::typetree::typetree_cache::TypeTreeProvider;
     use crate::unity_version::UnityVersion;
 
+    /// [`TypeTreeProvider`] which caches the results from the underlying provider.
     pub struct TypeTreeCache<T> {
         inner: T,
         typetree_cache: elsa::sync::FrozenMap<ClassId, Box<Option<TypeTreeNode>>>,
@@ -62,6 +68,7 @@ pub mod sync {
     }
 
     impl<T: TypeTreeProvider> TypeTreeProvider for TypeTreeCache<T> {
+        /// Return the cached reference. Will always be [`Cow::Borrowed`].
         fn get_typetree_node(
             &self,
             class_id: ClassId,

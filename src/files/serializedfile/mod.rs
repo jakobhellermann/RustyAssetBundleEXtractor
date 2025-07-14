@@ -568,6 +568,7 @@ impl<'a, T> ObjectRef<'a, T> {
     }
 }
 
+/// A collection of [objects](SerializedFile::objects) with associated metadata.
 #[derive(Debug, Clone)]
 pub struct SerializedFile {
     pub m_Header: SerializedFileHeader,
@@ -698,10 +699,8 @@ impl SerializedFile {
         file.recompute_lookup();
         Ok(file)
     }
-}
 
-impl SerializedFile {
-    /// List all object infos in the file
+    /// Lists all object infos in the file.
     pub fn objects(&self) -> impl ExactSizeIterator<Item = &ObjectInfo> {
         self.m_Objects.iter()
     }
@@ -843,6 +842,8 @@ impl SerializedFile {
         Ok(bytes)
     }
 
+    /// Read the saved typetree for the [`ClassId`] if possible, otherwise
+    /// get it from the [`TypeTreeProvider`].
     pub fn get_typetree_for_class<'a>(
         &'a self,
         class_id: ClassId,
@@ -852,6 +853,8 @@ impl SerializedFile {
             .ok_or(Error::NoTypetree(class_id))
     }
 
+    /// Read the saved typetree for the object if possible, otherwise
+    /// get it from the [`TypeTreeProvider`].
     pub fn get_typetree_for<'a>(
         &'a self,
         info: &ObjectInfo,
