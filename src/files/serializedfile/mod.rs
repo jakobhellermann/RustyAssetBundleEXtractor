@@ -621,7 +621,12 @@ impl SerializedFile {
         // Read Metadata
         let mut m_UnityVersion = None;
         if header.m_Version >= 9 {
-            m_UnityVersion = Some(reader.read_cstr()?.parse().unwrap());
+            m_UnityVersion = Some(
+                reader
+                    .read_cstr()?
+                    .parse()
+                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
+            );
             // SetVersion(unity_version);
         }
 
