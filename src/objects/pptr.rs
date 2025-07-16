@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::files::SerializedFile;
-use crate::files::serializedfile::{ObjectRef, Result};
+use crate::files::serializedfile::{FileIdentifier, ObjectRef, Result};
 use crate::typetree::TypeTreeProvider;
 use serde_derive::{Deserialize, Serialize};
 
@@ -81,6 +81,11 @@ impl PPtr {
     ) -> Result<ObjectRef<'a, T>> {
         assert!(self.is_local(), "Non-local pptr in deref_read_local");
         file.get_object(self.m_PathID, tpk)
+    }
+
+    pub fn file_identifier(self, file: &SerializedFile) -> Option<&FileIdentifier> {
+        file.m_Externals
+            .get(usize::try_from(self.m_FileID - 1).ok()?)
     }
 }
 

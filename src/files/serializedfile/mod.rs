@@ -325,7 +325,7 @@ impl SerializedType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct LocalSerializedObjectIdentifier {
     pub m_LocalSerializedFileIndex: i32,
     pub m_LocalIdentifierInFile: i64,
@@ -346,6 +346,15 @@ impl LocalSerializedObjectIdentifier {
                 reader.read_i64::<B>()?
             },
         })
+    }
+}
+
+impl From<LocalSerializedObjectIdentifier> for PPtr {
+    fn from(value: LocalSerializedObjectIdentifier) -> Self {
+        PPtr::new(
+            value.m_LocalSerializedFileIndex,
+            value.m_LocalIdentifierInFile,
+        )
     }
 }
 
@@ -864,6 +873,16 @@ impl SerializedFile {
             .map(Cow::Borrowed)
             .or_else(|| tpk.get_typetree_node(info.m_ClassID, self.m_UnityVersion.unwrap()))
             .ok_or(Error::NoTypetree(info.m_ClassID))
+    }
+
+    pub fn script_type(&self, info: &ObjectInfo) -> Option<PPtr> {
+        let index = usize::try_from(info.m_TypeID).ok()?;
+        let ty = &self.m_Types.get(index)?;
+        let script_type = *self
+            .m_ScriptTypes
+            .as_deref()?
+            .get(ty.m_ScriptTypeIndex as usize)?;
+        Some(PPtr::from(script_type))
     }
 }
 
