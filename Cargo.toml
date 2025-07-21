@@ -89,6 +89,7 @@ md4 = "0.10"
 
 [dev-dependencies]
 anyhow = "1.0"
+indexmap = "2.10"
 memmap2 = "0.9"
 pretty_assertions = "1.4"
 rayon = "1.10"
