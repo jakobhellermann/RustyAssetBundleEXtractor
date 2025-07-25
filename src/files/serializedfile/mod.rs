@@ -199,7 +199,7 @@ impl SerializedType {
             m_IsStrippedType: false,
             m_ScriptTypeIndex: -1,
             m_ScriptID: [0; 16],
-            m_OldTypeHash: [0; 16],
+            m_OldTypeHash: typetree.as_ref().map(|tt| tt.hash()).unwrap_or_default(),
             m_Type: typetree,
             m_ClassName: None,
             m_NameSpace: None,

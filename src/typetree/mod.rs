@@ -5,6 +5,7 @@ mod provider;
 /// Caching implementations of [`TypeTreeProvider`]
 pub mod typetree_cache;
 
+use md4::Digest;
 pub use provider::TypeTreeProvider;
 
 use crate::commonstring::COMMONSTRING;
@@ -381,5 +382,28 @@ impl TypeTreeNode {
         let mut out = String::new();
         dump_inner(self, &mut out, 0);
         out
+    }
+}
+
+impl TypeTreeNode {
+    pub fn hash(&self) -> [u8; 16] {
+        fn hash(md4: &mut md4::Md4, tt: &TypeTreeNode) {
+            use md4::Digest;
+
+            md4.update(&tt.m_Type);
+            md4.update(&tt.m_Name);
+            md4.update(i32::to_le_bytes(tt.m_ByteSize));
+            md4.update(i32::to_le_bytes(tt.m_TypeFlags));
+            md4.update(i32::to_le_bytes(tt.m_Version));
+            md4.update(i32::to_le_bytes(tt.m_MetaFlag.unwrap() & 0x4000));
+
+            for child in &tt.children {
+                hash(md4, child);
+            }
+        }
+
+        let mut md4 = md4::Md4::new();
+        hash(&mut md4, self);
+        md4.finalize().into()
     }
 }
