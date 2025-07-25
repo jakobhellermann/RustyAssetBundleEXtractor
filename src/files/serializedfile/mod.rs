@@ -193,6 +193,34 @@ pub struct SerializedType {
 }
 
 impl SerializedType {
+    fn new(class_id: ClassId, ty: Cow<'_, TypeTreeNode>, enable_typetree: bool) -> SerializedType {
+        SerializedType {
+            m_ClassID: class_id,
+            m_OldTypeHash: ty.hash(),
+            m_Type: enable_typetree.then(|| ty.into_owned()),
+            ..Default::default()
+        }
+    }
+}
+
+impl Default for SerializedType {
+    fn default() -> Self {
+        Self {
+            m_ClassID: ClassId::UnknownType,
+            m_IsStrippedType: false,
+            m_ScriptTypeIndex: -1,
+            m_ScriptID: [0; 16],
+            m_OldTypeHash: [0; 16],
+            m_Type: None,
+            m_ClassName: None,
+            m_NameSpace: None,
+            m_AsmName: None,
+            m_TypeDependencies: Vec::new(),
+        }
+    }
+}
+
+impl SerializedType {
     pub fn simple(class_id: ClassId, typetree: Option<TypeTreeNode>) -> SerializedType {
         SerializedType {
             m_ClassID: class_id,

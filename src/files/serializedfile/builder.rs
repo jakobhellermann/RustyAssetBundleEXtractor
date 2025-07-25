@@ -121,20 +121,15 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
                 todo!();
             }
 
-            let serialized_ty = if self.serialized.m_EnableTypeTree {
-                let ty = self
-                    .typetree_provider
-                    .get_typetree_node(class_id, self.unity_version)
-                    .unwrap();
-                // TODO: OldTypeHash
-                // TOOD: ScriptId for Monobehaviour
-                SerializedType::simple(class_id, Some(ty.into_owned()))
-            } else {
-                SerializedType::simple(class_id, None)
-            };
+            let ty = self
+                .typetree_provider
+                .get_typetree_node(class_id, self.unity_version)
+                .unwrap();
+            let serialized_type =
+                SerializedType::new(class_id, ty, self.serialized.m_EnableTypeTree);
 
             let type_index = self.serialized.m_Types.len();
-            self.serialized.m_Types.push(serialized_ty);
+            self.serialized.m_Types.push(serialized_type);
             type_index as i32
         })
     }
