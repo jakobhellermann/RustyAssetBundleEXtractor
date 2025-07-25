@@ -73,7 +73,7 @@ use std::marker::PhantomData;
 
 use super::UnityFile;
 use super::bundlefile::ExtractionConfig;
-use crate::objects::pptr::PathId;
+use crate::objects::pptr::{FileId, PathId};
 use crate::objects::{ClassId, ClassIdType, PPtr};
 use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
 use crate::serde_typetree;
@@ -474,8 +474,26 @@ pub struct FileIdentifier {
     pub typeId: Option<i32>,
     pub pathName: String,
 }
+impl Default for FileIdentifier {
+    fn default() -> Self {
+        Self {
+            tempEmpty: Some(String::new()),
+            guid: Some(Guid::default()),
+            typeId: Some(0),
+            pathName: String::new(),
+        }
+    }
+}
+impl FileIdentifier {
+    pub fn new(value: String) -> Self {
+        FileIdentifier {
+            pathName: value,
+            ..Default::default()
+        }
+    }
+}
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Default)]
 pub struct Guid(pub [u8; 16]);
 
 impl Guid {
@@ -888,6 +906,19 @@ impl SerializedFile {
             .as_deref()?
             .get(ty.m_ScriptTypeIndex as usize)?;
         Some(PPtr::from(script_type))
+    }
+}
+
+impl SerializedFile {
+    pub fn add_external(&mut self, external: FileIdentifier) -> FileId {
+        let new_file_idx = (self.m_Externals.len() + 1) as FileId;
+        self.m_Externals.push(external);
+        new_file_idx
+    }
+    pub fn add_type(&mut self, ty: SerializedType) -> i32 {
+        let new_index = self.m_Types.len();
+        self.m_Types.push(ty);
+        new_index as i32
     }
 }
 

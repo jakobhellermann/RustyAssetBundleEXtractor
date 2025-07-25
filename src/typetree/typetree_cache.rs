@@ -55,7 +55,7 @@ pub mod sync {
 
     /// [`TypeTreeProvider`] which caches the results from the underlying provider.
     pub struct TypeTreeCache<T> {
-        inner: T,
+        pub inner: T,
         typetree_cache: elsa::sync::FrozenMap<ClassId, Box<Option<TypeTreeNode>>>,
     }
     impl<T: TypeTreeProvider> TypeTreeCache<T> {
