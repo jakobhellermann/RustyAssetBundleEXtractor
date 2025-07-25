@@ -4,9 +4,10 @@ use std::io::{Seek, Write};
 
 use super::Error;
 use crate::files::serializedfile::{
-    self, ObjectInfo, SerializedFile, SerializedFileHeader, SerializedType, TypeTreeProvider,
+    self, FileIdentifier, ObjectInfo, SerializedFile, SerializedFileHeader, SerializedType,
+    TypeTreeProvider,
 };
-use crate::objects::pptr::PathId;
+use crate::objects::pptr::{FileId, PathId};
 use crate::objects::{ClassId, ClassIdType};
 use crate::serde_typetree;
 use crate::unity_version::UnityVersion;
@@ -166,9 +167,10 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     }
 
     pub fn add_type_uncached(&mut self, ty: SerializedType) -> i32 {
-        let new_index = self.serialized.m_Types.len();
-        self.serialized.m_Types.push(ty);
-        new_index as i32
+        self.serialized.add_type(ty)
+    }
+    pub fn add_external_uncached(&mut self, external: FileIdentifier) -> FileId {
+        self.serialized.add_external(external)
     }
 
     pub fn get_next_path_id(&mut self) -> PathId {
