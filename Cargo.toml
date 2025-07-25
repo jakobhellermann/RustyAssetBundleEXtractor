@@ -84,6 +84,9 @@ serde_path_to_error = { version = "0.1.17", optional = true }
 rustc-hash = "2.1"
 elsa = "1.11"
 
+# todo: find a simple crate with less traits and dependencies
+md4 = "0.10"
+
 [dev-dependencies]
 anyhow = "1.0"
 memmap2 = "0.9"
