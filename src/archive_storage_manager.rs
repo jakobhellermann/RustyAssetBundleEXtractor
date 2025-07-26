@@ -52,12 +52,12 @@ impl ArchiveStorageDecryptor {
 
         let _unknown = reader.read_u32::<BigEndian>().unwrap();
 
-        let info_bytes: [u8; 16] = reader.read_bytes_sized(16)?.try_into().unwrap();
-        let info_key: [u8; 16] = reader.read_bytes_sized(16)?.try_into().unwrap();
+        let info_bytes: [u8; 16] = reader.read_bytes_array::<16>()?;
+        let info_key: [u8; 16] = reader.read_bytes_array::<16>()?;
         reader.seek(SeekFrom::Current(1)).unwrap();
 
-        let signature_bytes: [u8; 16] = reader.read_bytes_sized(16)?.try_into().unwrap();
-        let signature_key: [u8; 16] = reader.read_bytes_sized(16)?.try_into().unwrap();
+        let signature_bytes: [u8; 16] = reader.read_bytes_array::<16>()?;
+        let signature_key: [u8; 16] = reader.read_bytes_array::<16>()?;
         reader.seek(SeekFrom::Current(1)).unwrap();
 
         let signature: [u8; 16] = decrypt_key(signature_key, signature_bytes, archive_key);
