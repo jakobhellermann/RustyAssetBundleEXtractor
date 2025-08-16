@@ -116,12 +116,19 @@ impl BundleFileHeader {
     }
     pub fn from_reader<T: Read + Seek>(reader: &mut T) -> Result<Self, Error> {
         Ok(BundleFileHeader {
-            signature: reader.read_cstr().unwrap().parse().unwrap(),
-            version: reader.read_u32::<BigEndian>().unwrap(),
-            unity_version: reader.read_cstr().unwrap(),
+            signature: reader.read_cstr()?.parse().map_err(|_| {
+                std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid signature")
+            })?,
+            version: reader.read_u32::<BigEndian>()?,
+            unity_version: reader.read_cstr()?,
             unity_revision: {
-                let str = reader.read_cstr().unwrap();
-                (str != "0.0.0").then(|| str.parse::<UnityVersion>().unwrap())
+                let str = reader.read_cstr()?;
+                match str.as_str() {
+                    "0.0.0" => None,
+                    _ => Some(str.parse::<UnityVersion>().map_err(|_| {
+                        std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid signature")
+                    })?),
+                }
             },
             size: 0,
         })
@@ -349,7 +356,7 @@ fn write_fs<W: Write + Seek>(
 
     writer.write_all(&compressed_block_data)?;
 
-    let length = writer.stream_position().unwrap();
+    let length = writer.stream_position()?;
 
     writer.seek(std::io::SeekFrom::Start(start_position))?;
     writer.write_i64::<BigEndian>(length as i64)?;
@@ -478,38 +485,35 @@ impl BundleFile {
         _config: &ExtractionConfig,
     ) -> Result<(Vec<FileEntry>, Vec<u8>), Error> {
         if self.m_Header.version >= 4 {
-            let _hash = reader.read_u128::<BigEndian>().unwrap();
-            let _crc = reader.read_u32::<BigEndian>().unwrap();
+            let _hash = reader.read_u128::<BigEndian>()?;
+            let _crc = reader.read_u32::<BigEndian>()?;
         }
-        let _minimum_streamed_bytes = reader.read_u32::<BigEndian>().unwrap();
+        let _minimum_streamed_bytes = reader.read_u32::<BigEndian>()?;
 
-        self.m_Header.size = reader.read_u32::<BigEndian>().unwrap();
+        self.m_Header.size = reader.read_u32::<BigEndian>()?;
 
-        let _number_of_levels_to_download_before_streaming =
-            reader.read_u32::<BigEndian>().unwrap();
-        let level_count = reader.read_u32::<BigEndian>().unwrap();
+        let _number_of_levels_to_download_before_streaming = reader.read_u32::<BigEndian>()?;
+        let level_count = reader.read_u32::<BigEndian>()?;
 
         // jump to last level
         // TODO - keep the levels for use in low-memory block decompressor strategy
-        reader
-            .seek(std::io::SeekFrom::Current(((level_count - 1) * 8) as i64))
-            .unwrap();
+        reader.seek(std::io::SeekFrom::Current(
+            ((level_count - 1).saturating_mul(8)) as i64,
+        ))?;
 
         let mut m_BlocksInfo = StorageBlock {
-            compressed_size: reader.read_u32::<BigEndian>().unwrap(),
-            uncompressed_size: reader.read_u32::<BigEndian>().unwrap(),
+            compressed_size: reader.read_u32::<BigEndian>()?,
+            uncompressed_size: reader.read_u32::<BigEndian>()?,
             flags: 0,
         };
 
         if self.m_Header.version >= 2 {
-            let _complete_file_size = reader.read_u32::<BigEndian>().unwrap();
+            let _complete_file_size = reader.read_u32::<BigEndian>()?;
         }
         if self.m_Header.version >= 3 {
-            let _file_info_header_size = reader.read_u128::<BigEndian>().unwrap();
+            let _file_info_header_size = reader.read_u128::<BigEndian>()?;
         }
-        reader
-            .seek(std::io::SeekFrom::Start(self.m_Header.size as u64))
-            .unwrap();
+        reader.seek(std::io::SeekFrom::Start(self.m_Header.size as u64))?;
 
         // ReadBlocksAndDirectory
         // is compressed -> lzma compression -> can be passed to decompress_block
@@ -528,15 +532,17 @@ impl BundleFile {
         )?;
         let block_info_reader = &mut blocks_info_bytes.as_slice();
 
-        let FileEntrys_count = block_info_reader.read_i32::<BigEndian>().unwrap();
+        let FileEntrys_count = block_info_reader.read_i32::<BigEndian>()?;
         let m_DirectoryInfo: Vec<FileEntry> = (0..FileEntrys_count)
-            .map(|_| FileEntry {
-                path: block_info_reader.read_cstr().unwrap(),
-                offset: block_info_reader.read_u32::<BigEndian>().unwrap() as i64,
-                size: block_info_reader.read_u32::<BigEndian>().unwrap() as i64,
-                flags: 0,
+            .map(|_| {
+                Ok(FileEntry {
+                    path: block_info_reader.read_cstr()?,
+                    offset: block_info_reader.read_u32::<BigEndian>()? as i64,
+                    size: block_info_reader.read_u32::<BigEndian>()? as i64,
+                    flags: 0,
+                })
             })
-            .collect();
+            .collect::<Result<_, std::io::Error>>()?;
 
         Ok((m_DirectoryInfo, blocks_info_bytes))
     }
@@ -640,22 +646,26 @@ fn read_unityfs_info<R: Read + Seek>(
 
     let block_info_count = block_info_reader.read_i32::<BigEndian>()?;
     let m_BlocksInfo: Vec<StorageBlock> = (0..block_info_count)
-        .map(|_| StorageBlock {
-            uncompressed_size: block_info_reader.read_u32::<BigEndian>().unwrap(),
-            compressed_size: block_info_reader.read_u32::<BigEndian>().unwrap(),
-            flags: block_info_reader.read_u16::<BigEndian>().unwrap() as u32,
+        .map(|_| {
+            Ok(StorageBlock {
+                uncompressed_size: block_info_reader.read_u32::<BigEndian>()?,
+                compressed_size: block_info_reader.read_u32::<BigEndian>()?,
+                flags: block_info_reader.read_u16::<BigEndian>()? as u32,
+            })
         })
-        .collect();
+        .collect::<Result<_, std::io::Error>>()?;
 
     let FileEntrys_count = block_info_reader.read_i32::<BigEndian>()?;
     let m_DirectoryInfo: Vec<FileEntry> = (0..FileEntrys_count)
-        .map(|_| FileEntry {
-            offset: block_info_reader.read_i64::<BigEndian>().unwrap(),
-            size: block_info_reader.read_i64::<BigEndian>().unwrap(),
-            flags: block_info_reader.read_u32::<BigEndian>().unwrap(),
-            path: block_info_reader.read_cstr().unwrap(),
+        .map(|_| {
+            Ok(FileEntry {
+                offset: block_info_reader.read_i64::<BigEndian>()?,
+                size: block_info_reader.read_i64::<BigEndian>()?,
+                flags: block_info_reader.read_u32::<BigEndian>()?,
+                path: block_info_reader.read_cstr()?,
+            })
         })
-        .collect();
+        .collect::<Result<_, std::io::Error>>()?;
 
     if use_new_archive_flags
         & (block_info.flags & ArchiveFlags::BLOCK_INFO_NEED_PADDING_AT_START.bits() > 0)
