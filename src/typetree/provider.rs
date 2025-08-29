@@ -38,3 +38,12 @@ impl<T: TypeTreeProvider> TypeTreeProvider for &T {
         (*self).get_typetree_node(class_id, target_version)
     }
 }
+
+/// [`TypeTreeProvider`] returning no data.
+pub struct NullTypeTreeProvider;
+
+impl TypeTreeProvider for NullTypeTreeProvider {
+    fn get_typetree_node(&self, _: ClassId, _: UnityVersion) -> Option<Cow<'_, TypeTreeNode>> {
+        None
+    }
+}

@@ -6,6 +6,7 @@ mod provider;
 pub mod typetree_cache;
 
 use md4::Digest;
+pub use provider::NullTypeTreeProvider;
 pub use provider::TypeTreeProvider;
 
 use crate::commonstring::COMMONSTRING;
