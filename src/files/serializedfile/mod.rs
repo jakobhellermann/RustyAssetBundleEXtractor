@@ -667,13 +667,16 @@ impl SerializedFile {
         // Read Metadata
         let mut m_UnityVersion = None;
         if header.m_Version >= 9 {
-            m_UnityVersion = Some(
-                reader
-                    .read_cstr()?
-                    .parse()
-                    .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
-            );
-            // SetVersion(unity_version);
+            let unity_version = reader.read_cstr()?;
+            m_UnityVersion = if unity_version == "0.0.0" {
+                None
+            } else {
+                Some(
+                    unity_version
+                        .parse()
+                        .map_err(|e| std::io::Error::new(std::io::ErrorKind::InvalidData, e))?,
+                )
+            };
         }
 
         let mut m_TargetPlatform = None;

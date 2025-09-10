@@ -136,7 +136,7 @@ impl BundleFileHeader {
 
     fn get_revision_tuple(&self, config: &ExtractionConfig) -> (u16, u16, u16) {
         self.unity_revision
-            .unwrap_or(config.fallback_unity_version)
+            .unwrap_or_else(|| config.fallback_unity_version.expect("Bundle file has no unity version number, and none is specified in ExtractionConfig"))
             .version_tuple()
     }
 }
