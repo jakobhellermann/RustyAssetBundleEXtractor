@@ -146,12 +146,11 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
                 if self.typetree.children.is_empty() {
                     return visitor.visit_unit();
                 }
-                visitor.visit_map(StructDeserializer {
-                    typetree: self.typetree,
-                    reader: self.reader,
-                    next_index: 0,
-                    marker: self.marker,
-                })
+                let result = visitor.visit_map(StructDeserializer::new(self));
+                if self.typetree.requires_align() {
+                    self.reader.align4()?;
+                }
+                result
             }
         }
     }
@@ -317,7 +316,11 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
-        visitor.visit_seq(StructDeserializer::new(self))
+        let result = visitor.visit_seq(StructDeserializer::new(self));
+        if self.typetree.requires_align() {
+            self.reader.align4()?;
+        }
+        result
     }
 
     fn deserialize_tuple_struct<V>(
@@ -329,7 +332,11 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
-        visitor.visit_seq(StructDeserializer::new(self))
+        let result = visitor.visit_seq(StructDeserializer::new(self));
+        if self.typetree.requires_align() {
+            self.reader.align4()?;
+        }
+        result
     }
 
     fn deserialize_map<V>(self, visitor: V) -> Result<V::Value, Self::Error>
@@ -378,7 +385,11 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
-        visitor.visit_map(StructDeserializer::new(self))
+        let result = visitor.visit_seq(StructDeserializer::new(self));
+        if self.typetree.requires_align() {
+            self.reader.align4()?;
+        }
+        result
     }
 
     fn deserialize_enum<V>(
