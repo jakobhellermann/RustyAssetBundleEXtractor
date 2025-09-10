@@ -3,8 +3,10 @@ use std::marker::PhantomData;
 
 use super::{Error, Result};
 use byteorder::{ByteOrder, ReadBytesExt};
-use serde::Deserialize;
-use serde::de::{DeserializeSeed, Error as _, IntoDeserializer, MapAccess, SeqAccess, Visitor};
+use rustc_hash::FxHashSet;
+use serde::de::Error as _;
+use serde::de::{DeserializeSeed, IgnoredAny, IntoDeserializer, MapAccess, SeqAccess, Visitor};
+use serde::{Deserialize, Deserializer as _};
 
 use crate::files::serializedfile::Endianness;
 use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
@@ -379,13 +381,13 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     fn deserialize_struct<V>(
         self,
         _: &'static str,
-        _: &'static [&'static str],
+        fields: &'static [&'static str],
         visitor: V,
     ) -> Result<V::Value, Self::Error>
     where
         V: serde::de::Visitor<'de>,
     {
-        let result = visitor.visit_seq(StructDeserializer::new(self));
+        let result = visitor.visit_map(FieldStructDeserializer::new(self, fields)?);
         if self.typetree.requires_align() {
             self.reader.align4()?;
         }
@@ -439,6 +441,88 @@ impl<'de, R: Read + Seek, B: ByteOrder> SeqAccess<'de> for SeqDeserializer<'_, R
     }
 }
 
+struct FieldStructDeserializer<'cx, R, B> {
+    typetree: &'cx TypeTreeNode,
+    reader: &'cx mut R,
+    next_index: usize,
+    field_indices: FxHashSet<usize>,
+    deserialized_field_count: usize,
+    marker: PhantomData<B>,
+}
+impl<'cx, R, B> FieldStructDeserializer<'cx, R, B> {
+    fn new(de: &'cx mut Deserializer<'_, R, B>, fields: &'static [&'static str]) -> Result<Self> {
+        let children = de.typetree.children.as_slice();
+        let field_indices = fields
+            .iter()
+            .map(|&field| {
+                let child_index = children
+                    .iter()
+                    .position(|child| child.m_Name == field)
+                    .ok_or_else(|| Error::missing_field(field))?;
+                Ok(child_index)
+            })
+            .collect::<Result<_>>()?;
+
+        Ok(FieldStructDeserializer {
+            typetree: de.typetree,
+            reader: de.reader,
+            next_index: 0,
+            field_indices,
+            deserialized_field_count: 0,
+            marker: de.marker,
+        })
+    }
+}
+
+impl<'de, R: Read + Seek, B: ByteOrder> MapAccess<'de> for FieldStructDeserializer<'_, R, B> {
+    type Error = Error;
+
+    fn next_key_seed<K: DeserializeSeed<'de>>(
+        &mut self,
+        seed: K,
+    ) -> Result<Option<K::Value>, Self::Error> {
+        while self.deserialized_field_count < self.field_indices.len() {
+            let index = self.next_index;
+            self.next_index += 1;
+
+            let Some(child) = self.typetree.children.get(index) else {
+                return Ok(None);
+            };
+
+            if self.field_indices.contains(&index) {
+                self.deserialized_field_count += 1;
+                return seed
+                    .deserialize(FixedKeyDeserializer { key: &child.m_Name })
+                    .map(Some);
+            } else {
+                Deserializer {
+                    typetree: child,
+                    reader: self.reader.by_ref(),
+                    marker: self.marker,
+                }
+                .deserialize_ignored_any(IgnoredAny)?;
+                continue;
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Self::Error>
+    where
+        V: DeserializeSeed<'de>,
+    {
+        let child = &self.typetree.children[self.next_index - 1];
+
+        seed.deserialize(&mut Deserializer {
+            typetree: child,
+            reader: self.reader.by_ref(),
+            marker: self.marker,
+        })
+    }
+}
+
+/// Requires fields specified in order without gaps (possibly with missing ones at the end)
 struct StructDeserializer<'cx, R, B> {
     typetree: &'cx TypeTreeNode,
     reader: &'cx mut R,
@@ -469,19 +553,6 @@ impl<'de, R: Read + Seek, B: ByteOrder> MapAccess<'de> for StructDeserializer<'_
 
         self.next_index += 1;
         let child = &self.typetree.children[self.next_index - 1];
-
-        /*let name = match child.m_Name.strip_prefix("m_") {
-            Some(rest) => {
-                let mut str = String::with_capacity(rest.len());
-                let mut chars = rest.chars();
-                if let Some(first) = chars.next() {
-                    str.push(first.to_ascii_lowercase());
-                }
-                str.extend(chars);
-                Cow::Owned(str)
-            }
-            None => Cow::Borrowed(&child.m_Name),
-        };*/
 
         seed.deserialize(FixedKeyDeserializer { key: &child.m_Name })
             .map(Some)
