@@ -73,7 +73,9 @@ impl FromStr for UnityVersion {
                 // TODO experimental
                 _ => return None,
             };
-            let build_number = &rest[i + 1..];
+            let rest = &rest[i + 1..];
+            // TODO: expose rest
+            let (build_number, _rest) = rest.split_once('-').unwrap_or((rest, ""));
 
             let build_number = if let Some((build_number, _)) = build_number.split_once('\n') {
                 // ?? 2020.2.2f1\n2
