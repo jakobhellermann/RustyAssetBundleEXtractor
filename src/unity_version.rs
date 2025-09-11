@@ -15,6 +15,17 @@ pub struct UnityVersion {
 }
 
 impl UnityVersion {
+    /// major.minor.buildf1
+    pub fn new(major: u16, minor: u16, build: u16) -> Self {
+        UnityVersion {
+            major,
+            minor,
+            build,
+            typ: UnityVersionType::Final,
+            build_number: 1,
+        }
+    }
+
     pub fn version_tuple(self) -> (u16, u16, u16) {
         (self.major, self.minor, self.build)
     }
