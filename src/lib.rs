@@ -18,4 +18,4 @@ mod write_ext;
 
 mod archive_storage_manager;
 
-pub use unity_version::UnityVersion;
+pub use unity_version::{UnityVersion, UnityVersionType};
