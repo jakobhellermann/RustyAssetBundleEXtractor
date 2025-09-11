@@ -138,7 +138,11 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
             "TypelessData" => visitor.visit_seq(ByteSeqDeserializer {
                 data: self.reader.read_bytes::<B>()?.into_iter(),
             }),
-            "ReferencedObject" | "ReferencedObjectData" | "ManagedReferencesRegistry" => todo!(),
+            reference @ ("ReferencedObject"
+            | "ReferencedObjectData"
+            | "ManagedReferencesRegistry") => {
+                Err(Error::custom(format!("unimplemented: {reference}")))
+            }
             _ if self.typetree.children.len() == 1
                 && &self.typetree.children[0].m_Type == "Array" =>
             {
