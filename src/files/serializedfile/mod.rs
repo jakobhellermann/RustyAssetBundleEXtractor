@@ -621,6 +621,14 @@ impl<'a, T> ObjectRef<'a, T> {
             marker: PhantomData,
         }
     }
+    pub fn cast_owned<U>(self) -> ObjectRef<'a, U> {
+        ObjectRef {
+            file: self.file,
+            info: self.info,
+            tt: self.tt,
+            marker: PhantomData,
+        }
+    }
 }
 
 /// A collection of [objects](SerializedFile::objects) with associated metadata.
