@@ -852,7 +852,7 @@ impl SerializedFile {
         T: ClassIdType,
     {
         let ty = tpk
-            .get_typetree_node(T::CLASS_ID, self.m_UnityVersion.unwrap())
+            .get_typetree_node(T::CLASS_ID, self.unity_version()?)
             .ok_or(Error::NoTypetree(T::CLASS_ID))?;
 
         Ok(self.object_infos_of::<T>().map(move |info| {
@@ -920,7 +920,7 @@ impl SerializedFile {
         class_id: ClassId,
         tpk: &'a impl TypeTreeProvider,
     ) -> Result<Cow<'a, TypeTreeNode>> {
-        tpk.get_typetree_node(class_id, self.m_UnityVersion.unwrap())
+        tpk.get_typetree_node(class_id, self.unity_version()?)
             .ok_or(Error::NoTypetree(class_id))
     }
 
@@ -931,10 +931,14 @@ impl SerializedFile {
         info: &ObjectInfo,
         tpk: &'a impl TypeTreeProvider,
     ) -> Result<Cow<'a, TypeTreeNode>> {
-        self.get_serialized_objectinfo_type(info)
-            .map(Cow::Borrowed)
-            .or_else(|| tpk.get_typetree_node(info.m_ClassID, self.m_UnityVersion.unwrap()))
-            .ok_or(Error::NoTypetree(info.m_ClassID))
+        match self.get_serialized_objectinfo_type(info) {
+            Some(value) => Ok(Cow::Borrowed(value)),
+            None => {
+                let unity_version = self.unity_version()?;
+                tpk.get_typetree_node(info.m_ClassID, unity_version)
+                    .ok_or(Error::NoTypetree(info.m_ClassID))
+            }
+        }
     }
 
     pub fn script_type(&self, info: &ObjectInfo) -> Option<PPtr> {
@@ -945,6 +949,10 @@ impl SerializedFile {
             .as_deref()?
             .get(ty.m_ScriptTypeIndex as usize)?;
         Some(PPtr::from(script_type))
+    }
+
+    fn unity_version(&self) -> Result<UnityVersion> {
+        self.m_UnityVersion.ok_or(Error::NoUnityVersion)
     }
 }
 
@@ -968,6 +976,7 @@ pub enum Error {
     Deserialize(serde_typetree::Error),
     Serialize(serde_typetree::Error),
     NoObject(PathId),
+    NoUnityVersion,
     IO(std::io::Error),
 }
 impl std::fmt::Display for Error {
@@ -982,6 +991,7 @@ impl std::fmt::Display for Error {
             Error::NoObject(path_id) => {
                 write!(f, "No object with path id {path_id} exists",)
             }
+            Error::NoUnityVersion => write!(f, "SerializedFile contains no unity version"),
         }
     }
 }
