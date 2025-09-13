@@ -19,7 +19,7 @@ readme = "README.md"
 repository = "https://github.com/UniversalGameExtraction/RustyAssetBundleEXtractor"
 
 [features]
-default = ["embed-tpk", "compression-all"]
+default = ["embed-tpk", "compression-lzma", "compression-lz4"]
 generated = []
 embed-tpk = ["compression-lz4"]
 serde_path_to_error = ["dep:serde_path_to_error"]
