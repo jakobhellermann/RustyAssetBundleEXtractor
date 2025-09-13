@@ -458,14 +458,8 @@ impl<'cx, R, B> FieldStructDeserializer<'cx, R, B> {
         let children = de.typetree.children.as_slice();
         let field_indices = fields
             .iter()
-            .map(|&field| {
-                let child_index = children
-                    .iter()
-                    .position(|child| child.m_Name == field)
-                    .ok_or_else(|| Error::missing_field(field))?;
-                Ok(child_index)
-            })
-            .collect::<Result<_>>()?;
+            .filter_map(|&field| children.iter().position(|child| child.m_Name == field))
+            .collect();
 
         Ok(FieldStructDeserializer {
             typetree: de.typetree,
