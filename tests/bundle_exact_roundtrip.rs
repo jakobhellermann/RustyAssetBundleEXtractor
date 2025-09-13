@@ -1,3 +1,5 @@
+#![cfg(feature = "compression-lz4hc")]
+
 use std::io::Cursor;
 
 use rabex::files::BundleFile;

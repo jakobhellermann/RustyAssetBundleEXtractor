@@ -28,7 +28,7 @@ fn check_uncompressed_2022() -> Result<(), std::io::Error> {
 fn check_chunkbased_2020() -> Result<(), std::io::Error> {
     assert_roundtrip(
         "tests/files/chunkbased-2020.2.2f1.bundle",
-        CompressionType::Lz4hc,
+        CompressionType::Lz4,
     )
 }
 
@@ -36,7 +36,7 @@ fn check_chunkbased_2020() -> Result<(), std::io::Error> {
 fn check_chunkbased_2022() -> Result<(), std::io::Error> {
     assert_roundtrip(
         "tests/files/chunkbased-2022.3.18f1.bundle",
-        CompressionType::Lz4hc,
+        CompressionType::Lz4,
     )
 }
 
@@ -70,6 +70,7 @@ fn check_compression() -> Result<(), std::io::Error> {
         "tests/files/default-2022.3.18f1.bundle",
         CompressionType::Lz4,
     )?;
+    #[cfg(feature = "compression-lz4hc")]
     assert_roundtrip(
         "tests/files/default-2022.3.18f1.bundle",
         CompressionType::Lz4hc,
@@ -88,7 +89,8 @@ fn assert_roundtrip(path: &str, compression: CompressionType) -> Result<(), std:
     bundlefile::write_bundle(
         &bundle.m_Header,
         &mut out,
-        CompressionType::Lz4hc,
+        // unity uses lz4hc for the header.
+        CompressionType::Lz4,
         compression,
         &bundle.m_DirectoryInfo,
         &bundle.m_BlockData,
