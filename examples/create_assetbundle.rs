@@ -2,13 +2,11 @@ use anyhow::Result;
 use rabex::files::bundlefile::BundleFileBuilder;
 use rabex::files::bundlefile::CompressionType;
 use rabex::files::serializedfile::FileIdentifier;
-use rabex::files::serializedfile::Guid;
 use rabex::files::serializedfile::build_common_offset_map;
 use rabex::files::serializedfile::builder::SerializedFileBuilder;
 use rabex::objects::ClassId;
 use rabex::objects::ClassIdType;
 use rabex::objects::PPtr;
-use rabex::objects::pptr::FileId;
 use rabex::tpk::TpkTypeTreeBlob;
 use rabex::typetree::typetree_cache::TypeTreeCache;
 use serde_derive::Serialize;
@@ -37,13 +35,8 @@ fn main() -> Result<()> {
 
     let mut container = BTreeMap::default();
     for (scene_index, objects) in objects {
-        let new_file_idx = (builder.serialized.m_Externals.len() + 1) as FileId;
-        builder.serialized.m_Externals.push(FileIdentifier {
-            tempEmpty: Some("".into()),
-            guid: Some(Guid([0; 16])),
-            typeId: Some(0),
-            pathName: format!("level{scene_index}"),
-        });
+        let new_file_idx =
+            builder.add_external_uncached(FileIdentifier::new(format!("level{scene_index}")));
 
         for &obj in objects {
             container.insert(
@@ -66,8 +59,7 @@ fn main() -> Result<()> {
         m_PathFlags: 7,
         ..Default::default()
     };
-    builder._next_path_id = 1;
-    builder.add_object(&ab)?;
+    builder.add_object_at(1, &ab)?;
 
     let mut builder_out = Vec::new();
     builder.write(Cursor::new(&mut builder_out))?;
