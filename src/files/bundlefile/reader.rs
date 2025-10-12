@@ -67,6 +67,10 @@ impl<R: Read + Seek> BundleFileReader<R> {
         &self.files
     }
 
+    pub fn serialized_files(&self) -> impl Iterator<Item = &FileEntry> {
+        self.files.iter().filter(|file| (file.flags & 4) != 0)
+    }
+
     pub fn blocks(&self) -> &[StorageBlock] {
         &self.blocks
     }
