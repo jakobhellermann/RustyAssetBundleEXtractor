@@ -70,6 +70,8 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::io::{Read, Seek, Write};
 use std::marker::PhantomData;
+use std::path::{Path, PathBuf};
+use std::str::Utf8Error;
 
 use super::UnityFile;
 use super::bundlefile::ExtractionConfig;
@@ -512,6 +514,33 @@ impl Default for FileIdentifier {
         }
     }
 }
+impl TryFrom<&Path> for FileIdentifier {
+    type Error = Utf8Error;
+
+    fn try_from(value: &Path) -> Result<Self, Self::Error> {
+        let value = value
+            .to_str()
+            .ok_or_else(|| std::str::from_utf8(b"\0").unwrap_err())?;
+        Ok(FileIdentifier::new(value.to_owned()))
+    }
+}
+impl TryFrom<PathBuf> for FileIdentifier {
+    type Error = Utf8Error;
+
+    fn try_from(value: PathBuf) -> Result<Self, Self::Error> {
+        FileIdentifier::try_from(value.as_path())
+    }
+}
+impl From<String> for FileIdentifier {
+    fn from(value: String) -> Self {
+        FileIdentifier::new(value)
+    }
+}
+impl From<&str> for FileIdentifier {
+    fn from(value: &str) -> Self {
+        FileIdentifier::new(value.into())
+    }
+}
 impl FileIdentifier {
     pub fn new(value: String) -> Self {
         FileIdentifier {
@@ -949,6 +978,10 @@ impl SerializedFile {
             .as_deref()?
             .get(ty.m_ScriptTypeIndex as usize)?;
         Some(PPtr::from(script_type))
+    }
+
+    pub fn externals_paths(&self) -> impl ExactSizeIterator<Item = &str> {
+        self.m_Externals.iter().map(|x| x.pathName.as_str())
     }
 
     fn unity_version(&self) -> Result<UnityVersion> {
