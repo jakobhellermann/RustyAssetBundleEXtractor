@@ -1160,7 +1160,10 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
     let version = serialized.m_Header.m_Version;
     // in the reader this is 9 10 11, in UnityPy 7 8 13
     if version >= 7 {
-        writer.write_cstr(&serialized.m_UnityVersion.unwrap().to_string())?;
+        match serialized.m_UnityVersion {
+            Some(version) => writer.write_cstr(&version.to_string())?,
+            None => writer.write_cstr("0.0.0")?,
+        }
     }
     if version >= 8 {
         writer.write_i32::<B>(serialized.m_TargetPlatform.unwrap())?;
