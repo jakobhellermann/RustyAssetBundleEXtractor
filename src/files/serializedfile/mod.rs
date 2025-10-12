@@ -1284,11 +1284,13 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
     Ok(())
 }
 
+pub type CommonOffsetMap<'a> = HashMap<&'a str, u32>;
+
 /// Required for serializing typetrees in [`write_serialized`].
 pub fn build_common_offset_map(
     tpk: &TpkTypeTreeBlob,
     unity_version: UnityVersion,
-) -> HashMap<&str, u32> {
+) -> CommonOffsetMap<'_> {
     let strings = tpk
         .common_string
         .string_buffer_indices
