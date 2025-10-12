@@ -990,6 +990,11 @@ impl SerializedFile {
 }
 
 impl SerializedFile {
+    pub fn get_external(&self, file_id: FileId) -> Option<&FileIdentifier> {
+        let index = file_id.get_externals_index()?;
+        self.m_Externals.get(index)
+    }
+
     pub fn add_external(&mut self, external: FileIdentifier) -> FileId {
         let new_file_idx = FileId::from_externals_index(self.m_Externals.len());
         self.m_Externals.push(external);

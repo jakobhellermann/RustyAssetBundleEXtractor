@@ -133,8 +133,16 @@ impl PPtr {
         self.m_FileID == FileId::LOCAL
     }
 
+    pub fn is_external(self) -> bool {
+        self.m_FileID != FileId::LOCAL
+    }
+
     pub fn as_local(self) -> Option<Self> {
         self.is_local().then_some(self)
+    }
+
+    pub fn as_external(self) -> Option<Self> {
+        (!self.is_local()).then_some(self)
     }
 
     /// Get a handled to the object referenced by this `PPtr`.
@@ -151,7 +159,15 @@ impl PPtr {
     }
 
     pub fn file_identifier(self, file: &SerializedFile) -> Option<&FileIdentifier> {
-        file.m_Externals.get(self.m_FileID.get_externals_index()?)
+        file.get_external(self.m_FileID)
+    }
+
+    pub fn resolve(self, file: &SerializedFile) -> Option<ResolvedPPtr<'_>> {
+        let external = file.get_external(self.m_FileID)?;
+        Some(ResolvedPPtr {
+            external_file: &external.pathName,
+            m_PathID: self.m_PathID,
+        })
     }
 }
 
@@ -259,5 +275,23 @@ impl<T> TypedPPtr<T> {
         tpk: &'a impl TypeTreeProvider,
     ) -> Result<ObjectRef<'a, T>> {
         self.untyped().deref_local::<T>(file, tpk)
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, PartialOrd, Ord, Clone, Copy)]
+pub struct ResolvedPPtr<'a> {
+    pub external_file: &'a str,
+    pub m_PathID: PathId,
+}
+
+impl<'a> ResolvedPPtr<'a> {
+    /// PERF: O(n) in the amount of external files
+    pub fn unresolve(self, file: &SerializedFile) -> Option<PPtr> {
+        for (i, path) in file.m_Externals.iter().enumerate() {
+            if path.pathName == self.external_file {
+                return Some(PPtr::new(FileId::from_externals_index(i), self.m_PathID));
+            }
+        }
+        None
     }
 }
