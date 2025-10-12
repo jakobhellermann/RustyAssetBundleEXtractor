@@ -9,7 +9,7 @@ pub type PathId = i64;
 pub type FileId = i32;
 
 /// Pointer to another object in this or an external [`SerializedFile`]
-#[derive(Debug, Serialize, Deserialize, Default, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Serialize, Deserialize, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PPtr {
     /// The [`SerializedFile`] the referenced object belongs to.
     ///
