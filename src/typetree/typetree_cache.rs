@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 
 use crate::objects::ClassId;
+#[cfg(feature = "embed-tpk")]
+use crate::tpk::TpkTypeTreeBlob;
 use crate::typetree::TypeTreeNode;
 use crate::typetree::TypeTreeProvider;
 use crate::unity_version::UnityVersion;
@@ -16,6 +18,15 @@ impl<T: TypeTreeProvider> TypeTreeCache<T> {
     pub fn new(inner: T) -> Self {
         Self {
             inner,
+            typetree_cache: Default::default(),
+        }
+    }
+}
+#[cfg(feature = "embed-tpk")]
+impl TypeTreeCache<TpkTypeTreeBlob> {
+    pub fn embedded() -> Self {
+        Self {
+            inner: TpkTypeTreeBlob::embedded(),
             typetree_cache: Default::default(),
         }
     }
@@ -49,6 +60,8 @@ pub mod sync {
     use std::borrow::Cow;
 
     use crate::objects::ClassId;
+    #[cfg(feature = "embed-tpk")]
+    use crate::tpk::TpkTypeTreeBlob;
     use crate::typetree::TypeTreeNode;
     use crate::typetree::typetree_cache::TypeTreeProvider;
     use crate::unity_version::UnityVersion;
@@ -58,10 +71,21 @@ pub mod sync {
         pub inner: T,
         typetree_cache: elsa::sync::FrozenMap<ClassId, Box<Option<TypeTreeNode>>>,
     }
+
     impl<T: TypeTreeProvider> TypeTreeCache<T> {
         pub fn new(inner: T) -> Self {
             Self {
                 inner,
+                typetree_cache: Default::default(),
+            }
+        }
+    }
+
+    #[cfg(feature = "embed-tpk")]
+    impl TypeTreeCache<TpkTypeTreeBlob> {
+        pub fn embedded() -> Self {
+            Self {
+                inner: TpkTypeTreeBlob::embedded(),
                 typetree_cache: Default::default(),
             }
         }

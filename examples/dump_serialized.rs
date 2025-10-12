@@ -1,6 +1,6 @@
 use anyhow::Result;
+use rabex::files::SerializedFile;
 use rabex::typetree::typetree_cache::TypeTreeCache;
-use rabex::{files::SerializedFile, tpk::TpkTypeTreeBlob};
 use std::fs::File;
 
 fn main() -> Result<()> {
@@ -9,7 +9,7 @@ fn main() -> Result<()> {
         .ok_or_else(|| anyhow::anyhow!("Expected path to unity bundle argument"))?;
     let data = &mut File::open(path)?;
 
-    let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
+    let tpk = TypeTreeCache::embedded();
 
     let file = SerializedFile::from_reader(data)?;
     for obj in file.objects() {

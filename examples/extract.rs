@@ -1,6 +1,5 @@
 use anyhow::Result;
 use rabex::files::bundlefile::BundleFileReader;
-use rabex::tpk::TpkTypeTreeBlob;
 use rabex::typetree::typetree_cache::TypeTreeCache;
 use std::fs::{DirBuilder, File};
 use std::io::{Cursor, Write};
@@ -10,7 +9,7 @@ use rabex::files::SerializedFile;
 use rabex::files::bundlefile::ExtractionConfig;
 
 fn main() -> Result<()> {
-    let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
+    let tpk = TypeTreeCache::embedded();
 
     let path =
         "/home/jakob/.local/share/Steam/steamapps/common/Nine Sols/NineSols_Data/data.unity3d";

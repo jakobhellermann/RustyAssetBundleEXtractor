@@ -3,11 +3,10 @@ use std::{io::Cursor, path::Path};
 use anyhow::Result;
 use rabex::files::SerializedFile;
 use rabex::objects::{ClassId, ClassIdType};
-use rabex::tpk::TpkTypeTreeBlob;
 use rabex::typetree::typetree_cache::TypeTreeCache;
 
 fn main() -> Result<()> {
-    let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
+    let tpk = TypeTreeCache::embedded();
 
     let path = Path::new(
         "/home/jakob/.local/share/Steam/steamapps/common/Nine Sols-Speedrunpatch/NineSols_Data/globalgamemanagers",

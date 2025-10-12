@@ -3,14 +3,13 @@ use std::{collections::HashMap, io::Cursor};
 use anyhow::Result;
 use rabex::files::serializedfile::{build_common_offset_map, builder::SerializedFileBuilder};
 use rabex::objects::{ClassId, ClassIdType, PPtr};
-use rabex::tpk::TpkTypeTreeBlob;
 use rabex::typetree::typetree_cache::TypeTreeCache;
 use serde_derive::Serialize;
 
 fn main() -> Result<()> {
     let bundle_name = "new_bundle";
     let unity_version = "2022.2.2f1".parse().unwrap();
-    let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
+    let tpk = TypeTreeCache::embedded();
     let common_offset_map = build_common_offset_map(&tpk.inner, unity_version);
 
     let mut sharedassets =
