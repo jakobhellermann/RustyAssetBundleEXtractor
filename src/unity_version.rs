@@ -12,6 +12,7 @@ pub struct UnityVersion {
     pub build: u16,
     pub typ: UnityVersionType,
     pub build_number: u8,
+    pub trailing_data: String,
 }
 
 impl UnityVersion {
@@ -23,6 +24,7 @@ impl UnityVersion {
             build,
             typ: UnityVersionType::Final,
             build_number: 1,
+            trailing_data: String::new(),
         }
     }
 
@@ -47,7 +49,11 @@ impl std::fmt::Display for UnityVersion {
             self.build,
             self.typ.char(),
             self.build_number,
-        )
+        )?;
+        if !self.trailing_data.is_empty() {
+            write!(f, "-{}", self.trailing_data)?;
+        }
+        Ok(())
     }
 }
 
@@ -67,6 +73,7 @@ impl FromStr for UnityVersion {
     type Err = UnityVersionParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
+        // TODO: reproduce 2020.2.2f1\n2
         (|| {
             let mut split = s.split('.');
             let major = split.next()?.parse().ok()?;
@@ -85,15 +92,8 @@ impl FromStr for UnityVersion {
                 _ => return None,
             };
             let rest = &rest[i + 1..];
-            // TODO: expose rest
-            let (build_number, _rest) = rest.split_once('-').unwrap_or((rest, ""));
 
-            let build_number = if let Some((build_number, _)) = build_number.split_once('\n') {
-                // ?? 2020.2.2f1\n2
-                build_number
-            } else {
-                build_number
-            };
+            let (build_number, trailing_data) = rest.split_once('-').unwrap_or((rest, ""));
 
             Some(UnityVersion {
                 major,
@@ -101,6 +101,7 @@ impl FromStr for UnityVersion {
                 build: build.parse().ok()?,
                 typ,
                 build_number: build_number.parse().ok()?,
+                trailing_data: trailing_data.to_owned(),
             })
         })()
         .ok_or_else(|| UnityVersionParseError(s.to_owned()))
@@ -128,5 +129,44 @@ impl UnityVersionType {
             UnityVersionType::Patch => 'p',        // ?
             UnityVersionType::Experimental => 'e', // ?
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{UnityVersion, UnityVersionType};
+
+    #[test]
+    fn unity_version_simple() {
+        let version: UnityVersion = "2022.2.2a13".parse().unwrap();
+
+        assert_eq!(
+            version,
+            UnityVersion {
+                major: 2022,
+                minor: 2,
+                build: 2,
+                typ: UnityVersionType::Alpha,
+                build_number: 13,
+                trailing_data: "".into(),
+            }
+        )
+    }
+
+    #[test]
+    fn unity_version_complex() {
+        let version: UnityVersion = "6000.0.50f1-uum-100966-branch1".parse().unwrap();
+
+        assert_eq!(
+            version,
+            UnityVersion {
+                major: 6000,
+                minor: 0,
+                build: 50,
+                typ: UnityVersionType::Final,
+                build_number: 1,
+                trailing_data: "uum-100966-branch1".into()
+            }
+        )
     }
 }
