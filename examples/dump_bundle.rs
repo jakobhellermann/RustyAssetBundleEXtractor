@@ -21,7 +21,7 @@ fn main() -> Result<()> {
         "{:?} {} {}",
         header.signature,
         header.version,
-        header.unity_revision.unwrap(),
+        header.unity_revision.as_ref().unwrap(),
     );
 
     let mut size_all = 0;

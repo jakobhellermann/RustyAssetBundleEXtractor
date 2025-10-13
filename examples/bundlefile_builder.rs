@@ -7,7 +7,7 @@ use rabex::files::bundlefile::BundleFileBuilder;
 use rabex::files::bundlefile::CompressionType;
 
 fn main() -> Result<()> {
-    let mut builder = BundleFileBuilder::unityfs(7, "2020.2.2f1".parse().unwrap());
+    let mut builder = BundleFileBuilder::unityfs(7, &"2020.2.2f1".parse().unwrap());
 
     let base = Path::new("tests/files/hk_serialized/");
     let files = [

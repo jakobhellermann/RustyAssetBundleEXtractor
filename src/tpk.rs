@@ -13,7 +13,7 @@
 //!
 //!     let version = "2023.2.18f1".parse().unwrap();
 //!
-//!     let ty = tpk.get_typetree_node(ClassId::GameObject, version).unwrap();
+//!     let ty = tpk.get_typetree_node(ClassId::GameObject, &version).unwrap();
 //!     println!("{}", ty.dump());
 //!
 //!     Ok(())
@@ -30,7 +30,7 @@
 //! # use rabex::objects::ClassId;
 //! # let unity_version = "2020.2.2f1".parse().unwrap();
 //! let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
-//! let node = tpk.get_typetree_node(ClassId::Transform, unity_version);
+//! let node = tpk.get_typetree_node(ClassId::Transform, &unity_version);
 //! ```
 
 #[non_exhaustive]
@@ -345,10 +345,10 @@ impl TpkCommonString {
         })
     }
 
-    pub fn get_count(&self, target_version: UnityVersion) -> Option<u8> {
+    pub fn get_count(&self, target_version: &UnityVersion) -> Option<u8> {
         let mut ret = None;
         for (version, item) in &self.version_information {
-            if target_version >= *version {
+            if target_version >= version {
                 ret = Some(*item)
             } else {
                 break;
@@ -359,7 +359,7 @@ impl TpkCommonString {
             .version_information
             .iter()
             .rev()
-            .find_map(|(version, item)| (target_version >= *version).then_some(*item));
+            .find_map(|(version, item)| (target_version >= version).then_some(*item));
         assert_eq!(iter, ret);
 
         ret
@@ -465,14 +465,14 @@ impl TpkTypeTreeBlob {
     pub fn get_typetree_node(
         &self,
         class_id: ClassId,
-        target_version: UnityVersion,
+        target_version: &UnityVersion,
     ) -> Option<TypeTreeNode> {
         let version_classes = &self.class_information[&class_id];
 
         let class = version_classes
             .iter()
             .rev()
-            .find_map(|(version, class)| (target_version >= *version).then_some(class))?
+            .find_map(|(version, class)| (target_version >= version).then_some(class))?
             .as_ref()?;
 
         self.get_typetree_node_for_class(class, false)

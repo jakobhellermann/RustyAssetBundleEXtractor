@@ -17,7 +17,7 @@ use crate::unity_version::UnityVersion;
 /// use rabex::files::bundlefile::CompressionType;
 ///
 /// fn main() -> Result<()> {
-///     let mut builder = BundleFileBuilder::unityfs(7, "2020.2.2f1".parse().unwrap());
+///     let mut builder = BundleFileBuilder::unityfs(7, &"2020.2.2f1".parse().unwrap());
 ///
 ///     builder.add_file("File1", BufReader::new(File::open("file1")?))?;
 ///     builder.add_file("File1.sharedAssets", BufReader::new(File::open("file1-assets")?))?;
@@ -37,10 +37,11 @@ pub struct BundleFileBuilder {
     dir_infos: Vec<FileEntry>,
 }
 impl BundleFileBuilder {
-    pub fn unityfs(version: u32, unity_version: UnityVersion) -> BundleFileBuilder {
+    /// Currently supported are versions 7 and 8.
+    pub fn unityfs(version: u32, unity_version: &UnityVersion) -> BundleFileBuilder {
         BundleFileBuilder {
             version,
-            unity_version,
+            unity_version: unity_version.clone(),
             #[cfg(feature = "compression-lz4hc")]
             header_compression: CompressionType::Lz4hc,
             #[cfg(all(not(feature = "compression-lz4hc"), feature = "compression-lz4"))]
