@@ -37,7 +37,7 @@ impl<T: TypeTreeProvider> TypeTreeProvider for TypeTreeCache<T> {
     fn get_typetree_node(
         &self,
         class_id: ClassId,
-        target_version: UnityVersion,
+        target_version: &UnityVersion,
     ) -> Option<Cow<'_, TypeTreeNode>> {
         match self.typetree_cache.get(&class_id) {
             Some(value) => value.as_ref().map(Cow::Borrowed),
@@ -96,7 +96,7 @@ pub mod sync {
         fn get_typetree_node(
             &self,
             class_id: ClassId,
-            target_version: UnityVersion,
+            target_version: &UnityVersion,
         ) -> Option<Cow<'_, TypeTreeNode>> {
             match self.typetree_cache.get(&class_id) {
                 Some(value) => value.as_ref().map(Cow::Borrowed),

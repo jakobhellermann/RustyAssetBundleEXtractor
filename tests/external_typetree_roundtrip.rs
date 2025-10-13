@@ -60,7 +60,10 @@ fn assert_roundtrip_all(path: &Path, tts: &TpkTypeTreeBlob) -> Result<()> {
 
     for object in serialized.objects() {
         let tt = tts
-            .get_typetree_node(object.m_ClassID, serialized.m_UnityVersion.unwrap())
+            .get_typetree_node(
+                object.m_ClassID,
+                serialized.m_UnityVersion.as_ref().unwrap(),
+            )
             .unwrap();
 
         if object.m_ClassID == ClassId::MonoBehaviour {

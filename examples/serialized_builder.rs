@@ -10,10 +10,10 @@ fn main() -> Result<()> {
     let bundle_name = "new_bundle";
     let unity_version = "2022.2.2f1".parse().unwrap();
     let tpk = TypeTreeCache::embedded();
-    let common_offset_map = build_common_offset_map(&tpk.inner, unity_version);
+    let common_offset_map = build_common_offset_map(&tpk.inner, &unity_version);
 
     let mut sharedassets =
-        SerializedFileBuilder::new(unity_version, &tpk, &common_offset_map, true);
+        SerializedFileBuilder::new(&unity_version, &tpk, &common_offset_map, true);
 
     let container = ["A", "B"]
         .iter()

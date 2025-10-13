@@ -15,8 +15,8 @@ fn main() -> Result<()> {
     let version = version
         .map(|v| v.parse())
         .transpose()?
-        .unwrap_or(*tpk.versions.last().unwrap());
-    let ty = tpk.get_typetree_node(ClassId::GameObject, version).unwrap();
+        .unwrap_or(tpk.versions.last().unwrap().clone());
+    let ty = tpk.get_typetree_node(ClassId::GameObject, &version).unwrap();
     println!("{}", ty.dump());
 
     Ok(())

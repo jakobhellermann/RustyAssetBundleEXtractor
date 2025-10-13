@@ -29,9 +29,9 @@ fn main() -> Result<()> {
         (40, &[258]),
     ];
 
-    let common_offset_map = build_common_offset_map(&tpk_raw, unity_version);
+    let common_offset_map = build_common_offset_map(&tpk_raw, &unity_version);
 
-    let mut builder = SerializedFileBuilder::new(unity_version, &tpk, &common_offset_map, false);
+    let mut builder = SerializedFileBuilder::new(&unity_version, &tpk, &common_offset_map, false);
 
     let mut container = BTreeMap::default();
     for (scene_index, objects) in objects {
@@ -64,7 +64,7 @@ fn main() -> Result<()> {
     let mut builder_out = Vec::new();
     builder.write(Cursor::new(&mut builder_out))?;
 
-    let mut bundle = BundleFileBuilder::unityfs(7, unity_version);
+    let mut bundle = BundleFileBuilder::unityfs(7, &unity_version);
     bundle.add_file("CAB-bundle", Cursor::new(builder_out))?;
 
     bundle.write(&mut out, CompressionType::None)?;

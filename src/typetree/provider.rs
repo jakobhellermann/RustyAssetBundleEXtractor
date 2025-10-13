@@ -14,7 +14,7 @@ pub trait TypeTreeProvider {
     fn get_typetree_node(
         &self,
         class_id: ClassId,
-        target_version: UnityVersion,
+        target_version: &UnityVersion,
     ) -> Option<Cow<'_, TypeTreeNode>>;
 }
 
@@ -24,7 +24,7 @@ impl TypeTreeProvider for TpkTypeTreeBlob {
     fn get_typetree_node(
         &self,
         class_id: ClassId,
-        target_version: UnityVersion,
+        target_version: &UnityVersion,
     ) -> Option<Cow<'_, TypeTreeNode>> {
         TpkTypeTreeBlob::get_typetree_node(self, class_id, target_version).map(Cow::Owned)
     }
@@ -33,7 +33,7 @@ impl<T: TypeTreeProvider> TypeTreeProvider for &T {
     fn get_typetree_node(
         &self,
         class_id: ClassId,
-        target_version: UnityVersion,
+        target_version: &UnityVersion,
     ) -> Option<Cow<'_, TypeTreeNode>> {
         (*self).get_typetree_node(class_id, target_version)
     }
@@ -43,7 +43,7 @@ impl<T: TypeTreeProvider> TypeTreeProvider for &T {
 pub struct NullTypeTreeProvider;
 
 impl TypeTreeProvider for NullTypeTreeProvider {
-    fn get_typetree_node(&self, _: ClassId, _: UnityVersion) -> Option<Cow<'_, TypeTreeNode>> {
+    fn get_typetree_node(&self, _: ClassId, _: &UnityVersion) -> Option<Cow<'_, TypeTreeNode>> {
         None
     }
 }

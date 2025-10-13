@@ -32,13 +32,13 @@ pub struct SerializedFileBuilder<'a, P> {
 impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     /// Create an empty `SerializeFileBuilder`
     pub fn new(
-        version: UnityVersion,
+        version: &UnityVersion,
         typetree_provider: &'a P,
         common_offset_map: &'a CommonOffsetMap<'a>,
         enable_type_tree: bool,
     ) -> Self {
         Self {
-            unity_version: version,
+            unity_version: version.clone(),
             typetree_provider,
             common_offset_map,
             next_path_id: 0,
@@ -55,7 +55,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
                     m_Reserved: [0, 0, 0],
                     unknown: 0,
                 },
-                m_UnityVersion: Some(version),
+                m_UnityVersion: Some(version.clone()),
                 m_TargetPlatform: Some(24), // TODO
                 m_EnableTypeTree: enable_type_tree,
                 m_bigIDEnabled: None,
@@ -112,7 +112,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         common_offset_map: &'a HashMap<&'a str, u32>,
     ) -> Self {
         Self {
-            unity_version: unity_version,
+            unity_version,
             typetree_provider,
             common_offset_map,
             next_path_id: 0,
@@ -129,7 +129,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
                     m_Reserved: [0, 0, 0],
                     unknown: 0,
                 },
-                m_UnityVersion: file.m_UnityVersion,
+                m_UnityVersion: file.m_UnityVersion.clone(),
                 m_TargetPlatform: file.m_TargetPlatform,
                 m_EnableTypeTree: file.m_EnableTypeTree,
                 m_bigIDEnabled: file.m_bigIDEnabled,
@@ -185,7 +185,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     ) -> Result<(), Error> {
         let tt = self
             .typetree_provider
-            .get_typetree_node(class_id, self.unity_version)
+            .get_typetree_node(class_id, &self.unity_version)
             .unwrap();
 
         let data =
@@ -249,7 +249,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
 
             let ty = self
                 .typetree_provider
-                .get_typetree_node(class_id, self.unity_version)
+                .get_typetree_node(class_id, &self.unity_version)
                 .unwrap();
             let serialized_type =
                 SerializedType::new(class_id, ty, self.serialized.m_EnableTypeTree);

@@ -108,6 +108,7 @@ impl BundleFileHeader {
         writer.write_cstr(&self.unity_version)?;
         writer.write_cstr(
             self.unity_revision
+                .as_ref()
                 .map(|v| v.to_string())
                 .as_deref()
                 .unwrap_or("0.0.0"),
@@ -136,7 +137,8 @@ impl BundleFileHeader {
 
     fn get_revision_tuple(&self, config: &ExtractionConfig) -> (u16, u16, u16) {
         self.unity_revision
-            .unwrap_or_else(|| config.fallback_unity_version.expect("Bundle file has no unity version number, and none is specified in ExtractionConfig"))
+            .as_ref()
+            .unwrap_or_else(|| config.fallback_unity_version.as_ref().expect("Bundle file has no unity version number, and none is specified in ExtractionConfig"))
             .version_tuple()
     }
 }

@@ -984,8 +984,8 @@ impl SerializedFile {
         self.m_Externals.iter().map(|x| x.pathName.as_str())
     }
 
-    fn unity_version(&self) -> Result<UnityVersion> {
-        self.m_UnityVersion.ok_or(Error::NoUnityVersion)
+    fn unity_version(&self) -> Result<&UnityVersion> {
+        self.m_UnityVersion.as_ref().ok_or(Error::NoUnityVersion)
     }
 }
 
@@ -1160,7 +1160,7 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
     let version = serialized.m_Header.m_Version;
     // in the reader this is 9 10 11, in UnityPy 7 8 13
     if version >= 7 {
-        match serialized.m_UnityVersion {
+        match &serialized.m_UnityVersion {
             Some(version) => writer.write_cstr(&version.to_string())?,
             None => writer.write_cstr("0.0.0")?,
         }
@@ -1323,10 +1323,10 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
 pub type CommonOffsetMap<'a> = HashMap<&'a str, u32>;
 
 /// Required for serializing typetrees in [`write_serialized`].
-pub fn build_common_offset_map(
-    tpk: &TpkTypeTreeBlob,
-    unity_version: UnityVersion,
-) -> CommonOffsetMap<'_> {
+pub fn build_common_offset_map<'a>(
+    tpk: &'a TpkTypeTreeBlob,
+    unity_version: &UnityVersion,
+) -> CommonOffsetMap<'a> {
     let strings = tpk
         .common_string
         .string_buffer_indices
