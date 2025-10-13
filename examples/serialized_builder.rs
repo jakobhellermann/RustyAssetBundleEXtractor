@@ -24,10 +24,11 @@ fn main() -> Result<()> {
         .collect();
 
     sharedassets.add_object(&PreloadData {
-        m_Assets: vec![PPtr {
-            m_FileID: 1,
+        // TODO?
+        /*m_Assets: vec![PPtr {
+            m_FileID: 1.into(),
             m_PathID: 10001,
-        }],
+        }],*/
         ..Default::default()
     })?;
 
