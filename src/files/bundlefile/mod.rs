@@ -411,8 +411,7 @@ fn write_block<W: Write>(
         }
         #[cfg(not(feature = "compression-lz4hc"))]
         CompressionType::Lz4hc => {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
+            return Err(std::io::Error::other(
                 "lz4hc rabex feature flag is not enabled, cannot use it as a compression format",
             ));
         }
