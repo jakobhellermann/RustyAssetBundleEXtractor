@@ -6,10 +6,68 @@ use crate::typetree::TypeTreeProvider;
 use serde_derive::{Deserialize, Serialize};
 
 pub type PathId = i64;
-pub type FileId = i32;
+
+#[derive(Serialize, Deserialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[serde(transparent)]
+#[repr(transparent)]
+pub struct FileId(i32);
+impl FileId {
+    pub const LOCAL: FileId = FileId(0);
+}
+impl From<i32> for FileId {
+    fn from(value: i32) -> Self {
+        FileId(value)
+    }
+}
+
+impl std::fmt::Debug for FileId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+impl std::fmt::Display for FileId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl FileId {
+    pub fn new(value: i32) -> FileId {
+        FileId(value)
+    }
+
+    pub fn from_externals_index(index: usize) -> FileId {
+        FileId((index + 1) as i32)
+    }
+
+    pub fn value(self) -> i32 {
+        self.0
+    }
+
+    pub fn is_local(self) -> bool {
+        self == FileId::LOCAL
+    }
+
+    pub fn is_external(self) -> bool {
+        self != FileId::LOCAL
+    }
+
+    pub fn get_externals_index(self) -> Option<usize> {
+        if self.0 == 0 {
+            None
+        } else {
+            Some((self.0 - 1) as usize)
+        }
+    }
+
+    pub fn get_external(self, file: &SerializedFile) -> Option<&str> {
+        let info = file.m_Externals.get(self.get_externals_index()?)?;
+        Some(info.pathName.as_str())
+    }
+}
 
 /// Pointer to another object in this or an external [`SerializedFile`]
-#[derive(Debug, Serialize, Deserialize, Default, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct PPtr {
     /// The [`SerializedFile`] the referenced object belongs to.
     ///
@@ -18,6 +76,15 @@ pub struct PPtr {
     pub m_FileID: FileId,
     /// Can be zero, for a null [`PPtr`]
     pub m_PathID: PathId,
+}
+
+impl Default for PPtr {
+    fn default() -> Self {
+        Self {
+            m_FileID: FileId::LOCAL,
+            m_PathID: Default::default(),
+        }
+    }
 }
 
 impl PPtr {
@@ -30,11 +97,11 @@ impl PPtr {
 
     /// [`PPtr`] local to its file.
     pub fn local(path_id: PathId) -> PPtr {
-        PPtr::new(0, path_id)
+        PPtr::new(FileId::LOCAL, path_id)
     }
 
     pub fn null() -> PPtr {
-        PPtr::new(0, 0)
+        PPtr::new(FileId::LOCAL, 0)
     }
 
     pub fn is_null(self) -> bool {
@@ -57,13 +124,13 @@ impl PPtr {
     /// Force the [`m_FileId`](PPtr::m_FileID) to be zero.
     pub fn make_local(self) -> PPtr {
         PPtr {
-            m_FileID: 0,
+            m_FileID: FileId::LOCAL,
             m_PathID: self.m_PathID,
         }
     }
 
     pub fn is_local(self) -> bool {
-        self.m_FileID == 0
+        self.m_FileID == FileId::LOCAL
     }
 
     pub fn as_local(self) -> Option<Self> {
@@ -84,8 +151,7 @@ impl PPtr {
     }
 
     pub fn file_identifier(self, file: &SerializedFile) -> Option<&FileIdentifier> {
-        file.m_Externals
-            .get(usize::try_from(self.m_FileID - 1).ok()?)
+        file.m_Externals.get(self.m_FileID.get_externals_index()?)
     }
 }
 
@@ -113,7 +179,7 @@ impl<T> PartialEq for TypedPPtr<T> {
 impl<T> Default for TypedPPtr<T> {
     fn default() -> Self {
         Self {
-            m_FileID: 0,
+            m_FileID: FileId::LOCAL,
             m_PathID: 0,
             marker: PhantomData,
         }
@@ -148,7 +214,7 @@ impl<T> TypedPPtr<T> {
 
     /// [`PPtr`] local to its file.
     pub fn local(path_id: PathId) -> TypedPPtr<T> {
-        TypedPPtr::new(0, path_id)
+        TypedPPtr::new(FileId::LOCAL, path_id)
     }
 
     pub fn null() -> TypedPPtr<T> {
@@ -173,14 +239,14 @@ impl<T> TypedPPtr<T> {
 
     pub fn make_local(self) -> TypedPPtr<T> {
         TypedPPtr {
-            m_FileID: 0,
+            m_FileID: FileId::LOCAL,
             m_PathID: self.m_PathID,
             marker: self.marker,
         }
     }
 
     pub fn is_local(self) -> bool {
-        self.m_FileID == 0
+        self.m_FileID == FileId::LOCAL
     }
 
     /// Get a handled to the object referenced by this `PPtr`.

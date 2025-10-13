@@ -357,7 +357,7 @@ impl SerializedType {
 
 #[derive(Debug, Clone, Copy)]
 pub struct LocalSerializedObjectIdentifier {
-    pub m_LocalSerializedFileIndex: i32,
+    pub m_LocalSerializedFileIndex: FileId,
     pub m_LocalIdentifierInFile: i64,
 }
 
@@ -367,7 +367,7 @@ impl LocalSerializedObjectIdentifier {
         header: &SerializedFileHeader,
     ) -> Result<LocalSerializedObjectIdentifier, std::io::Error> {
         Ok(LocalSerializedObjectIdentifier {
-            m_LocalSerializedFileIndex: reader.read_i32::<B>()?,
+            m_LocalSerializedFileIndex: reader.read_i32::<B>()?.into(),
             m_LocalIdentifierInFile: if header.m_Version
                 < SerializedFileFormatVersion::UNKNOWN_14.bits()
             {
@@ -402,7 +402,7 @@ pub struct ObjectInfo {
 impl ObjectInfo {
     pub fn as_local_pptr(&self) -> PPtr {
         PPtr {
-            m_FileID: 0,
+            m_FileID: FileId::LOCAL,
             m_PathID: self.m_PathID,
         }
     }
@@ -991,7 +991,7 @@ impl SerializedFile {
 
 impl SerializedFile {
     pub fn add_external(&mut self, external: FileIdentifier) -> FileId {
-        let new_file_idx = (self.m_Externals.len() + 1) as FileId;
+        let new_file_idx = FileId::from_externals_index(self.m_Externals.len());
         self.m_Externals.push(external);
         new_file_idx
     }
@@ -1240,7 +1240,7 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
         let script_types = serialized.m_ScriptTypes.as_deref().unwrap_or_default();
         writer.write_i32::<B>(script_types.len() as i32)?;
         for ty in script_types {
-            writer.write_i32::<B>(ty.m_LocalSerializedFileIndex)?;
+            writer.write_i32::<B>(ty.m_LocalSerializedFileIndex.value())?;
             if version < 14 {
                 writer.write_i32::<B>(ty.m_LocalIdentifierInFile as i32)?;
             } else {
