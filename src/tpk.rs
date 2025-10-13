@@ -416,6 +416,7 @@ impl UnityVersion {
             build,
             typ,
             build_number: type_number,
+            trailing_data: String::new(),
         })
     }
 }
