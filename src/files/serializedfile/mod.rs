@@ -22,7 +22,7 @@
 //!     let tpk = &TypeTreeCache::new(TpkTypeTreeBlob::embedded());
 //!     let file = SerializedFile::from_reader(reader)?;
 //!
-//!     for transform_obj in file.objects_of::<Transform>(tpk)? {
+//!     for transform_obj in file.objects_of::<Transform>(tpk) {
 //!         let transform = transform_obj.read(reader)?;
 //!
 //!         if transform.m_Father.is_null() {
@@ -608,7 +608,7 @@ impl FileIdentifier {
 pub struct ObjectRef<'a, T> {
     pub file: &'a SerializedFile,
     pub info: &'a ObjectInfo,
-    pub tt: Cow<'a, TypeTreeNode>,
+    pub tt: Result<Cow<'a, TypeTreeNode>>,
 
     marker: PhantomData<T>,
 }
@@ -617,13 +617,17 @@ impl<'a, T: std::fmt::Debug> std::fmt::Debug for ObjectRef<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ObjectRef")
             .field("info", &self.info)
-            .field("tt", &self.tt.m_Type)
+            .field("tt", &self.tt.as_ref().map(|ty| &*ty.m_Type))
             .finish()
     }
 }
 
 impl<'a, T> ObjectRef<'a, T> {
-    pub fn new(file: &'a SerializedFile, info: &'a ObjectInfo, tt: Cow<'a, TypeTreeNode>) -> Self {
+    pub fn new(
+        file: &'a SerializedFile,
+        info: &'a ObjectInfo,
+        tt: Result<Cow<'a, TypeTreeNode>>,
+    ) -> Self {
         ObjectRef {
             file,
             info,
@@ -637,8 +641,9 @@ impl<'a, T> ObjectRef<'a, T> {
     where
         T: Deserialize<'de>,
     {
+        let tt = self.typetree()?;
         reader.seek(std::io::SeekFrom::Start(self.info.m_Offset as u64))?;
-        serde_typetree::from_reader_endianed(&mut reader, &self.tt, self.file.m_Header.m_Endianess)
+        serde_typetree::from_reader_endianed(&mut reader, &tt, self.file.m_Header.m_Endianess)
             .map_err(Error::Deserialize)
     }
 
@@ -653,7 +658,7 @@ impl<'a, T> ObjectRef<'a, T> {
         ObjectRef {
             file: self.file,
             info: self.info,
-            tt: Cow::Borrowed(typetree),
+            tt: Ok(Cow::Borrowed(typetree)),
             marker: PhantomData,
         }
     }
@@ -661,7 +666,7 @@ impl<'a, T> ObjectRef<'a, T> {
         ObjectRef {
             file: self.file,
             info: self.info,
-            tt: Cow::Borrowed(&self.tt),
+            tt: self.typetree().map(Cow::Borrowed),
             marker: PhantomData,
         }
     }
@@ -671,6 +676,17 @@ impl<'a, T> ObjectRef<'a, T> {
             info: self.info,
             tt: self.tt,
             marker: PhantomData,
+        }
+    }
+
+    pub fn typetree(&self) -> Result<&TypeTreeNode> {
+        match &self.tt {
+            Ok(tt) => Ok(tt.as_ref()),
+            Err(e) => Err(match *e {
+                Error::NoTypetree(class_id) => Error::NoTypetree(class_id),
+                Error::NoUnityVersion => Error::NoUnityVersion,
+                _ => unreachable!(),
+            }),
         }
     }
 }
@@ -881,7 +897,7 @@ impl SerializedFile {
         let info = self
             .get_object_info(path_id)
             .ok_or(Error::NoObject(path_id))?;
-        let tt = self.get_typetree_for(info, tpk)?;
+        let tt = self.get_typetree_for(info, tpk);
         // breaks for Transform/RectTransform?
         // assert_eq!(info.m_ClassID, T::CLASS_ID, "get_object<{:?}> was actually {:?}", T::CLASS_ID, info.m_ClassID);
         Ok(ObjectRef::new(self, info, tt))
@@ -891,45 +907,28 @@ impl SerializedFile {
     pub fn objects_of<'a, T>(
         &'a self,
         tpk: &'a impl TypeTreeProvider,
-    ) -> Result<impl Iterator<Item = ObjectRef<'a, T>>>
+    ) -> impl Iterator<Item = ObjectRef<'a, T>>
     where
         T: ClassIdType,
     {
-        let fallback_type = self
-            .unity_version()
-            .ok()
-            .and_then(|version| tpk.get_typetree_node(T::CLASS_ID, version));
-        if !self.m_EnableTypeTree && fallback_type.is_none() {
-            return Err(Error::NoTypetree(T::CLASS_ID));
-        }
-
-        Ok(self.object_infos_of::<T>().map(move |info| {
-            let tt = self
-                .get_serialized_objectinfo_type(info)
-                .map(Cow::Borrowed)
-                .unwrap_or_else(|| {
-                    fallback_type
-                        .clone()
-                        .expect("file has no typetree for object, and also no provided typetree")
-                });
+        self.object_infos_of::<T>().map(move |info| {
+            let tt = self.get_typetree_for(info, tpk);
             ObjectRef::new(self, info, tt)
-        }))
+        })
     }
 
     /// Find the first object of type `T`
     pub fn find_object_of<'a, T>(
         &'a self,
         tpk: &'a impl TypeTreeProvider,
-    ) -> Result<Option<ObjectRef<'a, T>>>
+    ) -> Option<ObjectRef<'a, T>>
     where
         T: ClassIdType,
     {
-        self.find_object_info_of::<T>()
-            .map(move |info| {
-                let tt = self.get_typetree_for(info, tpk)?;
-                Ok(ObjectRef::new(self, info, tt))
-            })
-            .transpose()
+        self.find_object_info_of::<T>().map(move |info| {
+            let tt = self.get_typetree_for(info, tpk);
+            ObjectRef::new(self, info, tt)
+        })
     }
 
     fn get_serialized_objectinfo_type(&self, object: &ObjectInfo) -> Option<&TypeTreeNode> {
