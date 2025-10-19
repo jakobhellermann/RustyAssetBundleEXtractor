@@ -94,6 +94,19 @@ impl BundleFileBuilder {
             size: 0, // unused
         };
 
+        if self.version < 7 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "Bundle File version < 7 not supported".to_string(),
+            ));
+        }
+        if self.version > 8 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "Bundle File version > 8 not supported".to_string(),
+            ));
+        }
+
         header.write(&mut writer)?;
         bundlefile::write_fs(
             &header,
