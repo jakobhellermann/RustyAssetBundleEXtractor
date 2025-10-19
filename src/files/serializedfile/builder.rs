@@ -12,6 +12,7 @@ use crate::objects::{ClassId, ClassIdType};
 use crate::serde_typetree;
 use crate::unity_version::UnityVersion;
 use byteorder::LittleEndian;
+use rustc_hash::FxHashMap;
 use serde::Serialize;
 
 use super::Endianness;
@@ -27,6 +28,39 @@ pub struct SerializedFileBuilder<'a, P> {
     pub serialized: SerializedFile,
 
     types_cache: HashMap<ClassId, i32>,
+}
+
+impl<'a, P> std::fmt::Debug for SerializedFileBuilder<'a, P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        #[derive(Debug)]
+        struct ObjectInfo {
+            m_ClassId: ClassId,
+            m_TypeID: i32,
+            m_ScriptTypeIndex: Option<i16>,
+        }
+        impl ObjectInfo {
+            fn new(value: &super::ObjectInfo) -> Self {
+                ObjectInfo {
+                    m_ClassId: value.m_ClassID,
+                    m_TypeID: value.m_TypeID,
+                    m_ScriptTypeIndex: value.m_ScriptTypeIndex,
+                }
+            }
+        }
+        f.debug_struct("SerializedFileBuilder")
+            .field("unity_version", &self.unity_version)
+            .field("next_path_id", &self.next_path_id)
+            .field(
+                "objects",
+                &self
+                    .objects
+                    .iter()
+                    .map(|(path_id, (info, _))| (path_id, ObjectInfo::new(info)))
+                    .collect::<FxHashMap<_, _>>(),
+            )
+            .field("serialized", &self.serialized)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {

@@ -30,6 +30,16 @@ pub struct BundleFileReader<R> {
     scratch_offset: usize,
 }
 
+impl<R: std::fmt::Debug> std::fmt::Debug for BundleFileReader<R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BundleFileReader")
+            .field("header", &self.header)
+            .field("blocks", &self.blocks)
+            .field("files", &self.files)
+            .finish_non_exhaustive()
+    }
+}
+
 impl<R: Read + Seek> BundleFileReader<R> {
     /// Read the bundlefile from an I/O stream.
     pub fn from_reader(
@@ -152,9 +162,9 @@ impl<T: AsRef<[u8]>> BundleFileReader<Cursor<T>> {
             .transpose()
     }
 
-    pub fn read_at_entry(&self, file: &FileEntry) -> Result<Vec<u8>, std::io::Error> {
+    pub fn read_at_entry(&self, entry: &FileEntry) -> Result<Vec<u8>, std::io::Error> {
         let data = &self.reader.get_ref().as_ref()[self.data_offset as usize..];
-        read_single_file(&self.blocks, file, data)
+        read_single_file(&self.blocks, entry, data)
     }
 }
 
