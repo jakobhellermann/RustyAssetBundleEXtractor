@@ -607,6 +607,15 @@ pub struct ObjectRef<'a, T> {
     marker: PhantomData<T>,
 }
 
+impl<'a, T: std::fmt::Debug> std::fmt::Debug for ObjectRef<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ObjectRef")
+            .field("info", &self.info)
+            .field("tt", &self.tt.m_Type)
+            .finish()
+    }
+}
+
 impl<'a, T> ObjectRef<'a, T> {
     pub fn new(file: &'a SerializedFile, info: &'a ObjectInfo, tt: Cow<'a, TypeTreeNode>) -> Self {
         ObjectRef {

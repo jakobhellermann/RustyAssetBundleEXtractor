@@ -1,4 +1,6 @@
-use std::io::{Read, Seek, Write};
+use std::fs::File;
+use std::io::{BufWriter, Read, Seek, Write};
+use std::path::Path;
 
 use crate::files::bundlefile::{self, BundleFileHeader, CompressionType};
 use crate::files::unityfile::FileEntry;
@@ -68,6 +70,15 @@ impl BundleFileBuilder {
         });
 
         Ok(())
+    }
+
+    pub fn write_to_file(
+        self,
+        path: impl AsRef<Path>,
+        compression: CompressionType,
+    ) -> Result<(), std::io::Error> {
+        let writer = BufWriter::new(File::create(path.as_ref())?);
+        self.write(writer, compression)
     }
 
     pub fn write(
