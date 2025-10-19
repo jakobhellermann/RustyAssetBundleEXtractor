@@ -100,6 +100,10 @@ impl<R: Read + Seek> BundleFileReader<R> {
         Ok(())
     }
 
+    pub fn file(&self, file_path: &str) -> Option<&FileEntry> {
+        self.files().iter().find(|file| file.path == file_path)
+    }
+
     /// Get a [`BundleFileRef`] to an arbitrary file in the bundle by path.
     pub fn seek_file(
         &mut self,
