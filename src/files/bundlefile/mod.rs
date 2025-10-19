@@ -93,6 +93,7 @@ impl FromStr for BundleSignature {
     }
 }
 
+#[derive(Debug)]
 pub struct BundleFileHeader {
     pub signature: BundleSignature,
     pub version: u32,
