@@ -330,7 +330,13 @@ impl SerializedType {
         }
 
         if enable_type_tree {
-            let ty = self.m_Type.as_ref().unwrap();
+            let ty = self
+                .m_Type
+                .as_ref()
+                .ok_or_else(|| std::io::Error::other(format!(
+                    "SerializedFile is to be serialized with type tree information, but it contains a {:?} m_Types entry without it", self.m_ClassID
+                )))?;
+
             if version >= 12 || version == 10 {
                 ty.write_blob::<_, B>(writer.by_ref(), version, common_offset_map)?;
             } else {
@@ -889,15 +895,23 @@ impl SerializedFile {
     where
         T: ClassIdType,
     {
-        let ty = tpk
-            .get_typetree_node(T::CLASS_ID, self.unity_version()?)
-            .ok_or(Error::NoTypetree(T::CLASS_ID))?;
+        let fallback_type = self
+            .unity_version()
+            .ok()
+            .and_then(|version| tpk.get_typetree_node(T::CLASS_ID, version));
+        if !self.m_EnableTypeTree && fallback_type.is_none() {
+            return Err(Error::NoTypetree(T::CLASS_ID));
+        }
 
         Ok(self.object_infos_of::<T>().map(move |info| {
             let tt = self
                 .get_serialized_objectinfo_type(info)
                 .map(Cow::Borrowed)
-                .unwrap_or(ty.clone());
+                .unwrap_or_else(|| {
+                    fallback_type
+                        .clone()
+                        .expect("file has no typetree for object, and also no provided typetree")
+                });
             ObjectRef::new(self, info, tt)
         }))
     }
