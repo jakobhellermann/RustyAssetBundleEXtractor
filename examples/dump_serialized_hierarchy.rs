@@ -22,7 +22,7 @@ fn main() -> Result<()> {
 
     let file = SerializedFile::from_reader(data)?;
     let transforms = file
-        .objects_of::<Transform>(tpk)?
+        .objects_of::<Transform>(tpk)
         .map(|obj| Ok((obj.info.m_PathID, obj.read(data)?)))
         .collect::<Result<FxHashMap<_, _>>>()?;
 

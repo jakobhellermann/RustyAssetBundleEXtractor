@@ -16,7 +16,7 @@ fn main() -> Result<()> {
     let ggm = SerializedFile::from_reader(reader)?;
 
     let build_settings = ggm
-        .find_object_of::<BuildSettings>(&tpk)?
+        .find_object_of::<BuildSettings>(&tpk)
         .unwrap()
         .read(reader)?;
 
