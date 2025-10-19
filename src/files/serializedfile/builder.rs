@@ -2,7 +2,6 @@ use std::borrow::Cow;
 use std::collections::{BTreeMap, HashMap};
 use std::io::{Cursor, Seek, Write};
 
-use super::Error;
 use crate::files::serializedfile::{
     self, CommonOffsetMap, FileIdentifier, ObjectInfo, SerializedFile, SerializedFileHeader,
     SerializedType, TypeTreeProvider,
@@ -16,6 +15,8 @@ use rustc_hash::FxHashMap;
 use serde::Serialize;
 
 use super::Endianness;
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// Builder for creating a new [`SerializedFile`]
 pub struct SerializedFileBuilder<'a, P> {
@@ -75,7 +76,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
             unity_version: version.clone(),
             typetree_provider,
             common_offset_map,
-            next_path_id: 0,
+            next_path_id: 1,
             objects: BTreeMap::default(),
             types_cache: HashMap::default(),
 
@@ -105,12 +106,15 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     }
 
     /// Create a `SerializeFileBuilder` containing all data from the given file.
+    ///
+    /// To include all objects from the file, pass `file.objects().cloned()` as `objects`.
     pub fn from_serialized(
-        unity_version: UnityVersion,
+        unity_version: &UnityVersion,
         file: &SerializedFile,
         data: &'a [u8],
         typetree_provider: &'a P,
         common_offset_map: &'a HashMap<&'a str, u32>,
+        objects: impl Iterator<Item = ObjectInfo>,
     ) -> Self {
         let mut builder = SerializedFileBuilder::from_serialized_meta(
             unity_version,
@@ -123,7 +127,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         builder.serialized.m_ScriptTypes = file.m_ScriptTypes.clone();
         builder.serialized.m_RefTypes = file.m_RefTypes.clone();
 
-        for obj in file.objects() {
+        for obj in objects {
             let data = &data[obj.m_Offset as usize..obj.m_Offset as usize + obj.m_Size as usize];
             let res = builder.add_object_inner(obj.clone(), Cow::Borrowed(data));
             res.unwrap(); // the path id must be available
@@ -140,16 +144,16 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     /// - script types
     /// - ref types
     pub fn from_serialized_meta(
-        unity_version: UnityVersion,
+        unity_version: &UnityVersion,
         file: &SerializedFile,
         typetree_provider: &'a P,
         common_offset_map: &'a HashMap<&'a str, u32>,
     ) -> Self {
         Self {
-            unity_version,
+            unity_version: unity_version.clone(),
             typetree_provider,
             common_offset_map,
-            next_path_id: 0,
+            next_path_id: 1,
             objects: BTreeMap::default(),
             types_cache: HashMap::default(),
 
@@ -188,19 +192,32 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     /// Add an object to the serialized file.
     ///
     /// This will choose the next free path ID.
-    pub fn add_object<T: Serialize + ClassIdType>(&mut self, object: &T) -> Result<(), Error> {
+    pub fn add_object<T: Serialize + ClassIdType>(&mut self, object: &T) -> Result<PathId> {
         let path_id = self.get_next_path_id();
-        self.add_object_at(path_id, object)
+        self.add_object_at(path_id, object)?;
+        Ok(path_id)
     }
 
     /// Add an object to the serialized file.
-    ///
-    /// This will choose the next free path ID.
     pub fn add_object_at<T: Serialize + ClassIdType>(
         &mut self,
         path_id: PathId,
         object: &T,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
+        debug_assert!(
+            (T::CLASS_ID != ClassId::AssetBundle) || (path_id == 1 || path_id == 2),
+            "Assetbundles must be at path id 1 or 2"
+        );
+        let type_id = self.get_or_insert_type(T::CLASS_ID);
+        self.add_object_with(object, path_id, T::CLASS_ID, type_id)
+    }
+
+    /// Replace the data of the object at the path id.
+    pub fn replace_object_at<T: Serialize + ClassIdType>(
+        &mut self,
+        path_id: PathId,
+        object: &T,
+    ) -> Result<()> {
         let type_id = self.get_or_insert_type(T::CLASS_ID);
         self.add_object_with(object, path_id, T::CLASS_ID, type_id)
     }
@@ -216,14 +233,14 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         path_id: PathId,
         class_id: ClassId,
         type_id: i32,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let tt = self
             .typetree_provider
             .get_typetree_node(class_id, &self.unity_version)
             .unwrap();
 
-        let data =
-            serde_typetree::to_vec::<_, LittleEndian>(&object, &tt).map_err(Error::Serialize)?;
+        let data = serde_typetree::to_vec::<_, LittleEndian>(&object, &tt)
+            .map_err(serializedfile::Error::Serialize)?;
 
         self.add_object_untyped_with(path_id, class_id, type_id, Cow::Owned(data))
     }
@@ -244,7 +261,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         class_id: ClassId,
         type_id: i32,
         data: Cow<'a, [u8]>,
-    ) -> Result<(), Error> {
+    ) -> Result<()> {
         let info = ObjectInfo {
             m_PathID: path_id,
             m_Offset: 0, // ignored
@@ -261,14 +278,11 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     /// - all file IDs in the data must match `m_Externals`
     /// - if `m_ScriptTypeIndex` is set, it must match `m_ScriptTypes`
     /// - `info.m_TypeID` must correspond to a `m_Types` index
-    fn add_object_inner(&mut self, info: ObjectInfo, data: Cow<'a, [u8]>) -> Result<(), Error> {
+    fn add_object_inner(&mut self, info: ObjectInfo, data: Cow<'a, [u8]>) -> Result<()> {
         let path_id = info.m_PathID;
         let previous = self.objects.insert(path_id, (info, data));
         if let Some((previous, _)) = previous {
-            return Err(Error::IO(std::io::Error::other(format!(
-                "Can't add object {path_id} to SerializeFileBuilder: a {:?} already exists",
-                previous.m_ClassID
-            ))));
+            return Err(Error::PathIdAlreadyExists(path_id, previous.m_ClassID));
         }
 
         Ok(())
@@ -281,9 +295,11 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
                 todo!();
             }
 
+            // PERF: don't construct if not required
             let ty = self
                 .typetree_provider
                 .get_typetree_node(class_id, &self.unity_version)
+                .ok_or(serializedfile::Error::NoTypetree(class_id))
                 .unwrap();
             let serialized_type =
                 SerializedType::new(class_id, ty, self.serialized.m_EnableTypeTree);
@@ -304,14 +320,30 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         self.serialized.add_external(external)
     }
 
+    pub fn get_or_insert_external(&mut self, external: &str) -> FileId {
+        // PERF: O(n)
+        let file_id = self
+            .serialized
+            .m_Externals
+            .iter()
+            .enumerate()
+            .find_map(|(i, e)| (e.pathName == external).then_some(FileId::from_externals_index(i)));
+        file_id
+            .unwrap_or_else(|| self.add_external_uncached(FileIdentifier::new(external.to_owned())))
+    }
+
     pub fn get_next_path_id(&mut self) -> PathId {
-        let id = self.next_path_id;
-        self.next_path_id += 1;
-        id
+        loop {
+            let id = self.next_path_id;
+            self.next_path_id = self.next_path_id.checked_add(1).unwrap();
+            if !self.objects.contains_key(&id) {
+                return id;
+            }
+        }
     }
 
     /// Serialize the file into the given writer.
-    pub fn write<W: Write + Seek>(self, writer: W) -> Result<(), Error> {
+    pub fn write<W: Write + Seek>(self, writer: W) -> Result<()> {
         serializedfile::write_serialized_with_objects(
             writer,
             &self.serialized,
@@ -327,5 +359,39 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         let mut out = Vec::new();
         self.write(Cursor::new(&mut out))?;
         Ok(out)
+    }
+}
+
+#[derive(Debug)]
+#[non_exhaustive]
+pub enum Error {
+    SerializedFile(serializedfile::Error),
+    PathIdAlreadyExists(PathId, ClassId),
+    IO(std::io::Error),
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Error::SerializedFile(error) => error.fmt(f),
+            Error::IO(error) => write!(f, "IO error: {error}"),
+            Error::PathIdAlreadyExists(path_id, class_id) => write!(
+                f,
+                "Can't add object {path_id} to SerializeFileBuilder: a {class_id:?} already exists",
+            ),
+        }
+    }
+}
+impl std::error::Error for Error {}
+
+impl From<std::io::Error> for Error {
+    fn from(error: std::io::Error) -> Self {
+        Error::IO(error)
+    }
+}
+
+impl From<serializedfile::Error> for Error {
+    fn from(error: serializedfile::Error) -> Self {
+        Error::SerializedFile(error)
     }
 }
