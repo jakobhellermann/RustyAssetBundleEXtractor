@@ -2,7 +2,7 @@
 use anyhow::Result;
 use rabex::{
     files::SerializedFile,
-    objects::{ClassId, ClassIdType, TypedPPtr},
+    objects::{ClassId, ClassIdType, PPtr, TypedPPtr},
     typetree::{TypeTreeProvider, typetree_cache::TypeTreeCache},
 };
 use rustc_hash::FxHashMap;
@@ -46,6 +46,13 @@ fn print_object_hierarchy(
     let go = root.m_GameObject.deref_local(file, tpk)?.read(reader)?;
     println!("{}{}", "  ".repeat(indent), go.m_Name);
 
+    for component in &go.m_Component {
+        let component = component
+            .component
+            .deref_local::<serde_json::Value>(file, tpk)?;
+        println!("{}- {:?}", "  ".repeat(indent), component.info.m_ClassID);
+    }
+
     for child in &root.m_Children {
         let child = child.deref_local(file, tpk)?.read(reader)?;
         print_object_hierarchy(&child, file, tpk, reader, indent + 1)?;
@@ -68,7 +75,7 @@ impl ClassIdType for Transform {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct GameObject {
-    // pub m_Component: Vec<ComponentPair>,
+    pub m_Component: Vec<ComponentPair>,
     // pub m_Layer: u32,
     pub m_Name: String,
     // pub m_Tag: u16,
@@ -76,4 +83,14 @@ pub struct GameObject {
 }
 impl ClassIdType for GameObject {
     const CLASS_ID: ClassId = ClassId::GameObject;
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ComponentPair {
+    pub component: PPtr,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Named {
+    pub m_Name: Option<String>,
 }
