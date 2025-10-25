@@ -218,10 +218,13 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
         V: serde::de::Visitor<'de>,
     {
         ensure_type(self.typetree, "string")?;
-        let data = self.reader.read_string::<B>()?;
+        let len = self.reader.read_array_len::<B>()?;
+        let data = self.reader.read_bytes_sized(len)?;
         self.reader.align4()?;
-
-        visitor.visit_string(data)
+        match String::from_utf8(data) {
+            Ok(s) => visitor.visit_string(s),
+            Err(e) => visitor.visit_byte_buf(e.into_bytes()),
+        }
     }
 
     deserialize_unsupported!(deserialize_bytes, "bytes");
