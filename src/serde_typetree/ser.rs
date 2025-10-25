@@ -6,7 +6,6 @@ use crate::files::serializedfile::Endianness;
 use crate::write_ext::WriteSeekExt;
 use byteorder::{ByteOrder, WriteBytesExt};
 use serde::Serialize;
-use serde::de::Error as _;
 use serde::ser::Impossible;
 
 use crate::{serde_typetree::Error, typetree::TypeTreeNode};
@@ -330,10 +329,7 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
         }
 
         if self.typetree.children.len() != 1 || self.typetree.children[0].m_Type != "Array" {
-            return Err(Error::invalid_type(
-                serde::de::Unexpected::Other(&self.typetree.m_Type),
-                &"a list",
-            ));
+            return Err(Error::invalid_typetree_type(self.typetree, "a list"));
         };
 
         let array_type = &self.typetree.children[0];

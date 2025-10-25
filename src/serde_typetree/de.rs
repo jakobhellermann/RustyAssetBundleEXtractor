@@ -74,13 +74,10 @@ macro_rules! deserialize_by {
             V: serde::de::Visitor<'de>,
         {
             let $pat = self.typetree.m_Type.as_str() else {
-                return Err(Error::custom(format_args!(
-                    "invalid type: {}, expected {} (at {} {})",
-                    &self.typetree.m_Type,
+                return Err(Error::invalid_typetree_type(
+                    &self.typetree,
                     &stringify!($name),
-                    self.typetree.m_Type,
-                    self.typetree.m_Name,
-                )));
+                ));
             };
             let value = $read(&mut self.reader)?;
             if self.typetree.requires_align() {
@@ -97,10 +94,7 @@ macro_rules! deserialize_unsupported {
         where
             V: serde::de::Visitor<'de>,
         {
-            Err(Error::custom(format_args!(
-                "invalid type: {}, expected {} (at {} {})",
-                &self.typetree.m_Type, &$expected, &self.typetree.m_Type, &self.typetree.m_Name,
-            )))
+            Err(Error::invalid_typetree_type(&self.typetree, &$expected))
         }
     };
 }
@@ -612,7 +606,15 @@ impl<'de, R: Read + Seek, B: ByteOrder> MapAccess<'de> for MapDeserializer<'_, R
         }
         self.count -= 1;
 
-        seed.deserialize(&mut Deserializer {
+        /*return seed
+        .deserialize(&mut Deserializer {
+            typetree: self.key_type,
+            reader: self.reader.by_ref(),
+            marker: self.marker,
+        })
+        .map(Some);*/
+
+        seed.deserialize(&mut LenientMapKeyDeserializer {
             typetree: self.key_type,
             reader: self.reader.by_ref(),
             marker: self.marker,
@@ -684,13 +686,77 @@ impl<'de> serde::de::SeqAccess<'de> for ByteSeqDeserializer {
     }
 }
 
-fn ensure_type(tt: &TypeTreeNode, expected: &str) -> Result<(), Error> {
+fn ensure_type(tt: &TypeTreeNode, expected: &'static str) -> Result<(), Error> {
     if tt.m_Type != expected {
-        return Err(Error::custom(format_args!(
-            "invalid type: {}, expected {} (at {} {})",
-            tt.m_Type, &expected, tt.m_Type, tt.m_Name
-        )));
+        return Err(Error::invalid_typetree_type(tt, expected));
     };
 
     Ok(())
+}
+
+/// A structure that deserializes typetree data into Rust values.
+pub struct LenientMapKeyDeserializer<'cx, R, B> {
+    typetree: &'cx TypeTreeNode,
+    reader: &'cx mut R,
+    marker: PhantomData<B>,
+}
+
+impl<'cx, R, B> LenientMapKeyDeserializer<'cx, R, B> {
+    fn as_deserializer(&mut self) -> Deserializer<'_, R, B> {
+        Deserializer {
+            typetree: self.typetree,
+            reader: self.reader,
+            marker: self.marker,
+        }
+    }
+}
+
+impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de>
+    for &mut LenientMapKeyDeserializer<'_, R, B>
+{
+    type Error = Error;
+
+    fn deserialize_any<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        self.as_deserializer().deserialize_any(visitor)
+    }
+
+    fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
+        match self.typetree.m_Type.as_str() {
+            // "bool" => self.deserialize_bool(visitor),
+            // "UInt8" => self.deserialize_u8(visitor),
+            // "UInt16" | "unsigned short" => self.deserialize_u16(visitor),
+            "UInt32" | "unsigned int" | "Type*" => {
+                let value = ReadBytesExt::read_u32::<B>(&mut self.reader)?;
+                if self.typetree.requires_align() {
+                    self.reader.align4()?;
+                }
+
+                visitor.visit_string(value.to_string())
+            }
+            // "UInt64" | "unsigned long long" | "FileSize" => self.deserialize_u64(visitor),
+            // "SInt8" => self.deserialize_i8(visitor),
+            // "SInt16" | "short" => self.deserialize_i16(visitor),
+            // "SInt32" | "int" => self.deserialize_i32(visitor),
+            // "SInt64" | "long long" => self.deserialize_i64(visitor),
+            "string" => self.as_deserializer().deserialize_string(visitor),
+            // _ => self.deserialize_any(visitor),
+            _ => Err(Error::invalid_typetree_type(
+                self.typetree,
+                "a string map key",
+            )),
+        }
+    }
+
+    fn deserialize_string<V>(self, visitor: V) -> std::result::Result<V::Value, Self::Error>
+    where
+        V: Visitor<'de>,
+    {
+        Self::deserialize_str(self, visitor)
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char bytes byte_buf identifier
+        option unit unit_struct newtype_struct seq tuple
+        tuple_struct map struct enum ignored_any
+    }
 }
