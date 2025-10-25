@@ -1,3 +1,5 @@
+use crate::typetree::TypeTreeNode;
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub struct Error(Box<ErrorImpl>);
@@ -5,6 +7,13 @@ pub struct Error(Box<ErrorImpl>);
 impl Error {
     pub(crate) fn new(error: ErrorImpl) -> Self {
         Error(Box::new(error))
+    }
+
+    pub(crate) fn invalid_typetree_type(tt: &TypeTreeNode, expected: &'static str) -> Self {
+        Error(Box::new(ErrorImpl::InvalidType(format!(
+            "invalid type: {}, expected {} (at {} `{}`)",
+            tt.m_Type, &expected, tt.m_Type, tt.m_Name
+        ))))
     }
 
     pub fn custom<T: std::fmt::Display>(msg: T) -> Self {
@@ -23,6 +32,7 @@ pub(crate) enum ErrorImpl {
     IO(std::io::Error),
     Custom(String),
     Enum(&'static str),
+    InvalidType(String),
 }
 impl std::error::Error for Error {}
 
@@ -37,6 +47,7 @@ impl std::fmt::Display for Error {
                     "enum {name}: serde_typetree only supports #[serde(untagged)] enums"
                 )
             }
+            ErrorImpl::InvalidType(msg) => msg.fmt(f),
         }
     }
 }

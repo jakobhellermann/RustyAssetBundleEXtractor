@@ -643,7 +643,7 @@ impl<'a, T> ObjectRef<'a, T> {
     {
         let tt = self.typetree()?;
         reader.seek(std::io::SeekFrom::Start(self.info.m_Offset as u64))?;
-        serde_typetree::from_reader_endianed(&mut reader, &tt, self.file.m_Header.m_Endianess)
+        serde_typetree::from_reader_endianed(&mut reader, tt, self.file.m_Header.m_Endianess)
             .map_err(Error::Deserialize)
     }
 
