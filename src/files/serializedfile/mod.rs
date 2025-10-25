@@ -643,8 +643,21 @@ impl<'a, T> ObjectRef<'a, T> {
     {
         let tt = self.typetree()?;
         reader.seek(std::io::SeekFrom::Start(self.info.m_Offset as u64))?;
-        serde_typetree::from_reader_endianed(&mut reader, tt, self.file.m_Header.m_Endianess)
-            .map_err(Error::Deserialize)
+        let endianness = self.file.m_Header.m_Endianess;
+        let value = serde_typetree::from_reader_endianed(&mut reader, tt, endianness)
+            .map_err(Error::Deserialize)?;
+
+        let position = reader.stream_position()?;
+        let read_size = position as i64 - self.info.m_Offset;
+        if read_size != self.info.m_Size as i64 {
+            return Err(Error::ReadSizeMismatch {
+                class_id: self.info.m_ClassID,
+                expected: self.info.m_Size,
+                actual: read_size as u32,
+            });
+        }
+
+        Ok(value)
     }
 
     pub fn get_raw_data(&self, reader: &mut (impl Read + Seek)) -> Result<Vec<u8>, std::io::Error> {
@@ -1037,6 +1050,11 @@ pub enum Error {
     Serialize(serde_typetree::Error),
     NoObject(PathId),
     NoUnityVersion,
+    ReadSizeMismatch {
+        class_id: ClassId,
+        expected: u32,
+        actual: u32,
+    },
     IO(std::io::Error),
 }
 impl std::fmt::Display for Error {
@@ -1052,6 +1070,14 @@ impl std::fmt::Display for Error {
                 write!(f, "No object with path id {path_id} exists",)
             }
             Error::NoUnityVersion => write!(f, "SerializedFile contains no unity version"),
+            Error::ReadSizeMismatch {
+                class_id,
+                expected,
+                actual,
+            } => write!(
+                f,
+                "Expected to read {expected} bytes from {class_id:?}, but only read {actual}"
+            ),
         }
     }
 }
