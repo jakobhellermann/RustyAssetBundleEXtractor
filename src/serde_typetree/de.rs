@@ -12,6 +12,7 @@ use crate::files::serializedfile::Endianness;
 use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
 use crate::serde_typetree::error::ErrorImpl;
 use crate::typetree::TypeTreeNode;
+use crate::typetree::TypetreeNodeKind as Kind;
 
 /// A structure that deserializes typetree data into Rust values.
 pub struct Deserializer<'cx, R, B> {
@@ -112,46 +113,39 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
             self.typetree.m_Type,
             self.typetree.m_Name
         );*/
-        match self.typetree.m_Type.as_str() {
-            "bool" => self.deserialize_bool(visitor),
-            "UInt8" => self.deserialize_u8(visitor),
-            "UInt16" | "unsigned short" => self.deserialize_u16(visitor),
-            "UInt32" | "unsigned int" | "Type*" => self.deserialize_u32(visitor),
-            "UInt64" | "unsigned long long" | "FileSize" => self.deserialize_u64(visitor),
-            "SInt8" => self.deserialize_i8(visitor),
-            "SInt16" | "short" => self.deserialize_i16(visitor),
-            "SInt32" | "int" => self.deserialize_i32(visitor),
-            "SInt64" | "long long" => self.deserialize_i64(visitor),
-            "float" => self.deserialize_f32(visitor),
-            "double" => self.deserialize_f64(visitor),
-            "char" => self.deserialize_char(visitor),
-            "string" => self.deserialize_string(visitor),
-            "map" => self.deserialize_map(visitor),
-            "Type" => self.deserialize_unit(visitor), // TODO?
-            // "TypelessData" => visitor.visit_byte_buf(self.reader.read_bytes::<B>()?),
-            "TypelessData" => visitor.visit_seq(ByteSeqDeserializer {
+
+        match self.typetree.classify() {
+            Kind::Bool => self.deserialize_bool(visitor),
+            Kind::U8 => self.deserialize_u8(visitor),
+            Kind::U16 => self.deserialize_u16(visitor),
+            Kind::U32 => self.deserialize_u32(visitor),
+            Kind::U64 => self.deserialize_u64(visitor),
+            Kind::I8 => self.deserialize_i8(visitor),
+            Kind::I16 => self.deserialize_i16(visitor),
+            Kind::I32 => self.deserialize_i32(visitor),
+            Kind::I64 => self.deserialize_i64(visitor),
+            Kind::Float => self.deserialize_f32(visitor),
+            Kind::Double => self.deserialize_f64(visitor),
+            Kind::Char => self.deserialize_char(visitor),
+            Kind::String => self.deserialize_string(visitor),
+            Kind::Map => self.deserialize_map(visitor),
+            Kind::Untyped => visitor.visit_seq(ByteSeqDeserializer {
                 data: self.reader.read_bytes::<B>()?.into_iter(),
             }),
-            reference @ ("ReferencedObject"
-            | "ReferencedObjectData"
-            | "ManagedReferencesRegistry") => {
-                Err(Error::custom(format!("unimplemented: {reference}")))
-            }
-            _ if self.typetree.children.len() == 1
-                && &self.typetree.children[0].m_Type == "Array" =>
-            {
-                self.deserialize_seq(visitor)
-            }
-            _ => {
-                if self.typetree.children.is_empty() {
-                    return visitor.visit_unit();
-                }
+            Kind::Empty => visitor.visit_unit(),
+            Kind::Array => self.deserialize_seq(visitor),
+            Kind::Struct => {
                 let result = visitor.visit_map(StructDeserializer::new(self));
                 if self.typetree.requires_align() {
                     self.reader.align4()?;
                 }
                 result
             }
+            Kind::TodoReferenced => Err(Error::custom(format!(
+                "unimplemented: {}",
+                self.typetree.m_Type
+            ))),
+            Kind::TodoType => self.deserialize_unit(visitor),
         }
     }
 
@@ -721,11 +715,8 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de>
     }
 
     fn deserialize_str<V: Visitor<'de>>(self, visitor: V) -> Result<V::Value, Self::Error> {
-        match self.typetree.m_Type.as_str() {
-            // "bool" => self.deserialize_bool(visitor),
-            // "UInt8" => self.deserialize_u8(visitor),
-            // "UInt16" | "unsigned short" => self.deserialize_u16(visitor),
-            "UInt32" | "unsigned int" | "Type*" => {
+        match self.typetree.classify() {
+            Kind::U32 => {
                 let value = ReadBytesExt::read_u32::<B>(&mut self.reader)?;
                 if self.typetree.requires_align() {
                     self.reader.align4()?;
@@ -733,13 +724,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de>
 
                 visitor.visit_string(value.to_string())
             }
-            // "UInt64" | "unsigned long long" | "FileSize" => self.deserialize_u64(visitor),
-            // "SInt8" => self.deserialize_i8(visitor),
-            // "SInt16" | "short" => self.deserialize_i16(visitor),
-            // "SInt32" | "int" => self.deserialize_i32(visitor),
-            // "SInt64" | "long long" => self.deserialize_i64(visitor),
-            "string" => self.as_deserializer().deserialize_string(visitor),
-            // _ => self.deserialize_any(visitor),
+            Kind::String => self.as_deserializer().deserialize_string(visitor),
             _ => Err(Error::invalid_typetree_type(
                 self.typetree,
                 "a string map key",

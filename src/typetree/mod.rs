@@ -407,4 +407,58 @@ impl TypeTreeNode {
         hash(&mut md4, self);
         md4.finalize().into()
     }
+
+    pub fn classify(&self) -> TypetreeNodeKind {
+        use TypetreeNodeKind::*;
+        match self.m_Type.as_str() {
+            "bool" => Bool,
+            "UInt8" => U8,
+            "UInt16" | "unsigned short" => U16,
+            "UInt32" | "unsigned int" | "Type*" => U32,
+            "UInt64" | "unsigned long long" | "FileSize" => U64,
+            "SInt8" => I8,
+            "SInt16" | "short" => I16,
+            "SInt32" | "int" => I32,
+            "SInt64" | "long long" => I64,
+            "float" => Float,
+            "double" => Double,
+            "char" => Char,
+            "string" => String,
+            "map" => Map,
+            "Type" => TodoType,
+            "TypelessData" => Untyped,
+            "ReferencedObject" | "ReferencedObjectData" | "ManagedReferencesRegistry" => {
+                TodoReferenced
+            }
+            _ => match self.children.len() {
+                0 => Empty,
+                1 if self.children[0].m_Type == "Array" => Array,
+                _ => Struct,
+            },
+        }
+    }
+}
+
+pub enum TypetreeNodeKind {
+    Bool,
+    U8,
+    U16,
+    U32,
+    U64,
+    I8,
+    I16,
+    I32,
+    I64,
+    Float,
+    Double,
+    Char,
+    String,
+    Map,
+    Untyped,
+    Empty,
+    Array,
+    Struct,
+
+    TodoReferenced,
+    TodoType,
 }
