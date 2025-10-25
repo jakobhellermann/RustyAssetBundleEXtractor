@@ -90,7 +90,17 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
     }
 
     fn serialize_i8(self, v: i8) -> Result<Self::Ok, Self::Error> {
-        todo!("{}", self.typetree.dump())
+        match self.typetree.m_Type.as_str() {
+            "SInt8" => self.writer.write_i8(v)?,
+            _ => {
+                return Err(Error::custom(format_args!(
+                    "invalid type: {}, expected {} {}",
+                    "i8", self.typetree.m_Type, self.typetree.m_Name,
+                )));
+            }
+        }
+
+        self.align_if(self.requires_align)
     }
 
     fn serialize_i16(self, v: i16) -> Result<Self::Ok, Self::Error> {
@@ -248,11 +258,19 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
     }
 
     fn serialize_char(self, v: char) -> Result<Self::Ok, Self::Error> {
-        todo!("{}", self.typetree.dump())
+        match u8::try_from(v) {
+            Ok(value) => {
+                self.writer.write_u8(value)?;
+                self.align_if(self.requires_align)
+            }
+            Err(e) => Err(Error::custom(format!(
+                "Cannot serialize char '{}' outside of 0-255",
+                v
+            ))),
+        }
     }
 
     fn serialize_str(self, v: &str) -> Result<Self::Ok, Self::Error> {
-        assert!(!self.requires_align);
         ensure_type(self.typetree, "string")?;
         self.writer.write_i32::<B>(v.len() as i32)?;
         self.writer.write_all(v.as_bytes())?;
@@ -260,7 +278,17 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
     }
 
     fn serialize_bytes(self, v: &[u8]) -> Result<Self::Ok, Self::Error> {
-        todo!("{}", self.typetree.dump())
+        let Ok(len) = u32::try_from(v.len()) else {
+            return Err(Error::custom(format!(
+                "Byte sequence of length {} exceeds u32::MAX",
+                v.len()
+            )));
+        };
+
+        self.writer.write_u32::<B>(len)?;
+
+        self.writer.write_all(v)?;
+        Ok(())
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
@@ -277,6 +305,7 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
                 "Trying to serialize unit as float. This can happen with e.g. serde_json and infinity/NaN",
             )),
             "Type" => Ok(()),
+            _ if self.typetree.children.is_empty() => Ok(()),
             _ => ensure_type(self.typetree, "unit"),
         }
     }
@@ -379,7 +408,6 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
         match self.typetree.m_Type.as_str() {
             "vector" => todo!(),
             "array" => todo!(),
-            "pair" => todo!(),
             "ReferencedObject" | "ReferencedObjectData" | "ManagedReferencesRegistry" => todo!(),
             "map" => {
                 self.writer.write_i32::<B>(len.expect("TODO") as i32)?;
