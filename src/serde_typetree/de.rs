@@ -100,6 +100,22 @@ macro_rules! deserialize_unsupported {
     };
 }
 
+#[cfg(false)]
+macro_rules! offsets {
+    ($self:ident) => {
+        println!(
+            "{:4x} {} {}",
+            $self.reader.stream_position()?,
+            $self.typetree.m_Type,
+            $self.typetree.m_Name
+        );
+    };
+}
+#[cfg(true)]
+macro_rules! offsets {
+    ($self:ident) => {};
+}
+
 impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deserializer<'_, R, B> {
     type Error = Error;
 
@@ -107,12 +123,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
-        /*println!(
-            "{} {} {}",
-            self.reader.stream_position()?,
-            self.typetree.m_Type,
-            self.typetree.m_Name
-        );*/
+        offsets!(self);
 
         match self.typetree.classify() {
             Kind::Bool => self.deserialize_bool(visitor),
@@ -217,6 +228,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
+        offsets!(self);
         ensure_type(self.typetree, "string")?;
         let len = self.reader.read_array_len::<B>()?;
         let data = self.reader.read_bytes_sized(len)?;
@@ -269,6 +281,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
+        offsets!(self);
         // vector m_Component
         //   Array Array
         //     int size
@@ -340,6 +353,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
+        offsets!(self);
         // map m_Container
         //  Array Array
         //   int size
@@ -382,6 +396,8 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     where
         V: serde::de::Visitor<'de>,
     {
+        offsets!(self);
+
         let result = visitor.visit_map(FieldStructDeserializer::new(self, fields)?);
         if self.typetree.requires_align() {
             self.reader.align4()?;
