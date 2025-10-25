@@ -86,6 +86,7 @@ elsa = "1.11"
 
 # todo: find a simple crate with less traits and dependencies
 md4 = "0.10"
+internment = "0.8.6"
 
 [dev-dependencies]
 anyhow = "1.0"

@@ -5,6 +5,8 @@ mod provider;
 /// Caching implementations of [`TypeTreeProvider`]
 pub mod typetree_cache;
 
+pub use internment::Intern;
+
 use md4::Digest;
 pub use provider::NullTypeTreeProvider;
 pub use provider::TypeTreeProvider;
@@ -92,7 +94,7 @@ pub struct TypeTreeNode {
     pub m_VariableCount: Option<i32>,
     // helper fields
     //typehash: u32,
-    pub children: Vec<TypeTreeNode>,
+    pub children: Vec<Intern<TypeTreeNode>>,
 }
 impl TypeTreeNode {
     pub fn from_reader<R: std::io::Read + std::io::Seek, B: ByteOrder>(
@@ -136,9 +138,10 @@ impl TypeTreeNode {
                 children: Vec::new(),
             };
             let children_count = reader.read_i32::<B>()?;
-            node.children = (0..children_count)
-                .map(|_| read_node_base::<R, B>(reader, version, level + 1))
-                .collect::<Result<_, _>>()?;
+            todo!();
+            // node.children = (0..children_count)
+            // .map(|_| read_node_base::<R, B>(reader, version, level + 1))
+            // .collect::<Result<_, _>>()?;
             Ok(node)
         }
         read_node_base::<R, B>(reader, version, 0)
@@ -193,7 +196,7 @@ impl TypeTreeNode {
             }
         }
 
-        let nodes: Vec<(u8, TypeTreeNode)> = (0..node_count)
+        let mut nodes: Vec<(u8, TypeTreeNode)> = (0..node_count)
             .map(|_| {
                 let m_Version = node_reader.read_u16::<B>()? as i32;
                 let m_Level = node_reader.read_u8()?;
@@ -235,15 +238,20 @@ impl TypeTreeNode {
         fn add_children(
             parent: &mut TypeTreeNode,
             parent_level: u8,
-            nodes: &[(u8, TypeTreeNode)],
+            nodes: &mut [(u8, TypeTreeNode)],
             offset: usize,
         ) -> i32 {
             let mut added: i32 = 0;
+            dbg!(offset + 1);
+            dbg!(nodes.len());
+
             for i in (offset + 1)..nodes.len() {
-                let (node_level, mut node) = nodes[i].clone();
+                dbg!(i);
+                let (node_level, mut node) = std::mem::take(&mut nodes[i]);
+                assert!(!node.m_Name.is_empty());
                 if node_level == parent_level + 1 {
                     added += add_children(&mut node, parent_level + 1, nodes, i) + 1;
-                    parent.children.push(node.clone());
+                    parent.children.push(Intern::new(node.clone()));
                 } else if node_level <= parent_level {
                     break;
                 }
@@ -255,7 +263,7 @@ impl TypeTreeNode {
             .first()
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "typetree"))?
             .clone();
-        let added = add_children(&mut root_node, 0, &nodes, 0);
+        let added = add_children(&mut root_node, 0, &mut nodes, 0);
         if added != node_count - 1 {
             unreachable!("typetree parsing: not all nodes were added to the tree");
         }
@@ -340,7 +348,7 @@ impl TypeTreeNode {
                 node,
             )?;
 
-            stack.extend(node.children.iter().rev());
+            stack.extend(node.children.iter().map(AsRef::as_ref).rev());
         }
 
         writer.write_i32::<B>(count)?;

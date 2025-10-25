@@ -88,6 +88,7 @@ use bitflags::bitflags;
 use byteorder::WriteBytesExt;
 use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
 
+use internment::Intern;
 use num_enum::TryFromPrimitive;
 use rustc_hash::FxHashMap;
 use serde::Deserialize;
@@ -185,7 +186,7 @@ pub struct SerializedType {
     pub m_ScriptID: [u8; 16],
     pub m_OldTypeHash: [u8; 16],
     /// Only set if [`SerializedFile::m_EnableTypeTree`] is `true`.
-    pub m_Type: Option<TypeTreeNode>,
+    pub m_Type: Option<Intern<TypeTreeNode>>,
     // for reftypes
     pub m_ClassName: Option<String>,
     pub m_NameSpace: Option<String>,
@@ -199,7 +200,7 @@ impl SerializedType {
         SerializedType {
             m_ClassID: class_id,
             m_OldTypeHash: ty.hash(),
-            m_Type: enable_typetree.then(|| ty.into_owned()),
+            m_Type: enable_typetree.then(|| Intern::new(ty.into_owned())), // TODO(intern)
             ..Default::default()
         }
     }
@@ -223,7 +224,7 @@ impl Default for SerializedType {
 }
 
 impl SerializedType {
-    pub fn simple(class_id: ClassId, typetree: Option<TypeTreeNode>) -> SerializedType {
+    pub fn simple(class_id: ClassId, typetree: Option<Intern<TypeTreeNode>>) -> SerializedType {
         SerializedType {
             m_ClassID: class_id,
             m_IsStrippedType: false,
@@ -282,12 +283,15 @@ impl SerializedType {
             if header.m_Version >= SerializedFileFormatVersion::UNKNOWN_12.bits()
                 || header.m_Version == SerializedFileFormatVersion::UNKNOWN_10.bits()
             {
-                typ.m_Type = Some(TypeTreeNode::blob_from_reader::<T, B>(
+                typ.m_Type = Some(Intern::new(TypeTreeNode::blob_from_reader::<T, B>(
                     reader,
                     header.m_Version,
-                )?);
+                )?));
             } else {
-                typ.m_Type = Some(TypeTreeNode::from_reader::<T, B>(reader, header.m_Version)?);
+                typ.m_Type = Some(Intern::new(TypeTreeNode::from_reader::<T, B>(
+                    reader,
+                    header.m_Version,
+                )?));
             }
             if header.m_Version >= SerializedFileFormatVersion::STORES_TYPE_DEPENDENCIES.bits() {
                 if isRefType {

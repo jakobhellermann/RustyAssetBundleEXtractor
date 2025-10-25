@@ -571,7 +571,8 @@ fn read_7bit_encoded_string<R: Read>(reader: &mut R) -> Result<String> {
 fn reconstruct_tree(mut flat_nodes: Vec<TypeTreeNode>) -> TypeTreeNode {
     fn access(mut node: &mut TypeTreeNode, mut depth: usize) -> &mut TypeTreeNode {
         while depth > 0 {
-            node = node.children.last_mut().unwrap();
+            todo!();
+            // node = node.children.last_mut().unwrap();
             depth -= 1;
         }
         node
