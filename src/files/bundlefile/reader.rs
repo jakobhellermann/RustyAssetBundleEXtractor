@@ -94,6 +94,7 @@ impl<R: Read + Seek> BundleFileReader<R> {
         Some(BundleFileRef {
             iter: self,
             path: file.path,
+            flags: file.flags,
             offset: file.offset,
             size: file.size as usize,
         })
@@ -146,9 +147,10 @@ impl<R: Read + Seek> BundleFileReader<R> {
 
         Ok(BundleFileRef {
             path: file.path,
+            flags: file.flags,
             size: file.size as usize,
-            iter: self,
             offset: file.offset,
+            iter: self,
         })
     }
 }
@@ -224,6 +226,7 @@ fn read_single_file(
 pub struct BundleFileRef<'s, R> {
     pub path: String,
     pub size: usize,
+    pub flags: u32,
     iter: &'s mut BundleFileReader<R>,
     offset: i64,
 }
@@ -232,6 +235,7 @@ impl<'s, R: std::fmt::Debug> std::fmt::Debug for BundleFileRef<'s, R> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("BundleFileRef")
             .field("path", &self.path)
+            .field("flags", &self.flags)
             .field("size", &self.size)
             .field("offset", &self.offset)
             .finish()
