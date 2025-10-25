@@ -71,7 +71,7 @@ bitflags! {
 }
 
 /// The element type of the type tree.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Hash)]
 pub struct TypeTreeNode {
     pub m_Type: String,
     pub m_Name: String,
@@ -150,6 +150,18 @@ impl TypeTreeNode {
     ) -> Result<TypeTreeNode, std::io::Error> {
         // originally a list with level slicing
         // reordered here to fit the newer tree structure
+
+        /*
+
+        i32 node_count
+        i32 string_buffer_size
+
+        node_count x
+            version, level, flags, type, name, ...
+
+
+        */
+
         let node_size = if version >= 19 { 32 } else { 24 };
         let node_count = reader.read_i32::<B>()?;
         let string_buffer_size = reader.read_i32::<B>()?;
@@ -429,6 +441,11 @@ impl TypeTreeNode {
         let mut md4 = md4::Md4::new();
         hash(&mut md4, self);
         md4.finalize().into()
+    }
+
+    pub fn visit(&self, mut f: impl FnMut(&TypeTreeNode)) {
+        f(self);
+        self.children.iter().for_each(|child| f(child));
     }
 
     pub fn classify(&self) -> TypetreeNodeKind {
