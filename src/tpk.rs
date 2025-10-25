@@ -505,10 +505,10 @@ impl TpkTypeTreeBlob {
             let name = &self.string_buffer[node.name as usize];
             nodes.push(TypeTreeNode {
                 m_Version: node.version as i32,
-                m_Level: level,
+                // m_Level: level,
                 m_TypeFlags: node.type_flags as i32,
                 m_ByteSize: node.byte_size,
-                m_Index: Some(index),
+                // m_Index: Some(index),
                 m_MetaFlag: Some(node.meta_flag as i32),
                 m_Type: type_name.clone(),
                 m_Name: name.clone(),
@@ -580,9 +580,10 @@ fn reconstruct_tree(mut flat_nodes: Vec<TypeTreeNode>) -> TypeTreeNode {
     let mut root = flat_nodes.remove(0);
 
     for flat_node in flat_nodes {
-        access(&mut root, flat_node.m_Level as usize - 1)
-            .children
-            .push(flat_node);
+        todo!();
+        /*access(&mut root, flat_node.m_Level as usize - 1)
+        .children
+        .push(flat_node);*/
     }
 
     root

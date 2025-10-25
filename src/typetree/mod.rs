@@ -76,10 +76,10 @@ pub struct TypeTreeNode {
     pub m_Type: String,
     pub m_Name: String,
     pub m_Version: i32,
-    pub m_Level: u8,
+    // pub m_Level: u8,
     pub m_TypeFlags: i32,
     pub m_ByteSize: i32,
-    pub m_Index: Option<i32>,
+    // pub m_Index: Option<i32>,
     pub m_MetaFlag: Option<i32>,
     //unsigned short children_count,
     //struct TypeTreeNodeObject **children,
@@ -104,21 +104,26 @@ impl TypeTreeNode {
             version: u32,
             level: u8,
         ) -> Result<TypeTreeNode, std::io::Error> {
+            let m_Type = reader.read_cstr()?;
+            let m_Name = reader.read_cstr()?;
+            let m_ByteSize = reader.read_i32::<B>()?;
+            let m_VariableCount = if version == 2 {
+                Some(reader.read_i32::<B>()?)
+            } else {
+                None
+            };
+            let m_Index = if version != 3 {
+                Some(reader.read_i32::<B>()?)
+            } else {
+                None
+            };
+
             let mut node = TypeTreeNode {
-                m_Level: level,
-                m_Type: reader.read_cstr()?,
-                m_Name: reader.read_cstr()?,
-                m_ByteSize: reader.read_i32::<B>()?,
-                m_VariableCount: if version == 2 {
-                    Some(reader.read_i32::<B>()?)
-                } else {
-                    None
-                },
-                m_Index: if version != 3 {
-                    Some(reader.read_i32::<B>()?)
-                } else {
-                    None
-                },
+                //m_Level: level,
+                m_Type,
+                m_Name,
+                m_ByteSize,
+                m_VariableCount,
                 // in version 4, m_TypeFlags are m_IsArray
                 m_TypeFlags: reader.read_i32::<B>()?,
                 m_Version: reader.read_i32::<B>()?,
@@ -132,7 +137,7 @@ impl TypeTreeNode {
             };
             let children_count = reader.read_i32::<B>()?;
             node.children = (0..children_count)
-                .map(|_| read_node_base::<R, B>(reader, version, node.m_Level + 1))
+                .map(|_| read_node_base::<R, B>(reader, version, level + 1))
                 .collect::<Result<_, _>>()?;
             Ok(node)
         }
@@ -176,55 +181,71 @@ impl TypeTreeNode {
             }
         }
 
-        let nodes: Vec<TypeTreeNode> = (0..node_count)
+        let nodes: Vec<(u8, TypeTreeNode)> = (0..node_count)
             .map(|_| {
-                std::io::Result::Ok(TypeTreeNode {
-                    m_Version: node_reader.read_u16::<B>()? as i32,
-                    m_Level: node_reader.read_u8()?,
-                    m_TypeFlags: node_reader.read_u8()? as i32,
-                    m_Type: read_string::<std::io::Cursor<Vec<u8>>>(
-                        &mut string_buffer_reader,
-                        node_reader.read_u32::<B>()?,
-                    )?,
-                    m_Name: read_string::<std::io::Cursor<Vec<u8>>>(
-                        &mut string_buffer_reader,
-                        node_reader.read_u32::<B>()?,
-                    )?,
-                    m_ByteSize: node_reader.read_i32::<B>()?,
-                    m_Index: Some(node_reader.read_i32::<B>()?),
-                    m_MetaFlag: Some(node_reader.read_i32::<B>()?),
-                    m_RefTypeHash: if version >= 19 {
-                        Some(node_reader.read_u64::<B>()?)
-                    } else {
-                        None
+                let m_Version = node_reader.read_u16::<B>()? as i32;
+                let m_Level = node_reader.read_u8()?;
+
+                let m_TypeFlags = node_reader.read_u8()? as i32;
+                let m_Type = read_string::<std::io::Cursor<Vec<u8>>>(
+                    &mut string_buffer_reader,
+                    node_reader.read_u32::<B>()?,
+                )?;
+                let m_Name = read_string::<std::io::Cursor<Vec<u8>>>(
+                    &mut string_buffer_reader,
+                    node_reader.read_u32::<B>()?,
+                )?;
+                let m_ByteSize = node_reader.read_i32::<B>()?;
+                let m_Index = Some(node_reader.read_i32::<B>()?);
+
+                std::io::Result::Ok((
+                    m_Level,
+                    TypeTreeNode {
+                        m_Version,
+                        // m_Level,
+                        m_TypeFlags,
+                        m_Type,
+                        m_Name,
+                        m_ByteSize,
+                        m_MetaFlag: Some(node_reader.read_i32::<B>()?),
+                        m_RefTypeHash: if version >= 19 {
+                            Some(node_reader.read_u64::<B>()?)
+                        } else {
+                            None
+                        },
+                        children: Vec::new(),
+                        m_VariableCount: None,
                     },
-                    children: Vec::new(),
-                    m_VariableCount: None,
-                })
+                ))
             })
             .collect::<Result<_, _>>()?;
 
-        fn add_children(parent: &mut TypeTreeNode, nodes: &[TypeTreeNode], offset: usize) -> i32 {
+        fn add_children(
+            parent: &mut TypeTreeNode,
+            parent_level: u8,
+            nodes: &[(u8, TypeTreeNode)],
+            offset: usize,
+        ) -> i32 {
             let mut added: i32 = 0;
             for i in (offset + 1)..nodes.len() {
-                let mut node = nodes[i].clone();
-                if node.m_Level == parent.m_Level + 1 {
-                    added += add_children(&mut node, nodes, i) + 1;
+                let (node_level, mut node) = nodes[i].clone();
+                if node_level == parent_level + 1 {
+                    added += add_children(&mut node, parent_level + 1, nodes, i) + 1;
                     parent.children.push(node.clone());
-                } else if node.m_Level <= parent.m_Level {
+                } else if node_level <= parent_level {
                     break;
                 }
             }
             added
         }
 
-        let mut root_node = nodes
+        let (_, mut root_node) = nodes
             .first()
             .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "typetree"))?
             .clone();
-        let added = add_children(&mut root_node, &nodes, 0);
+        let added = add_children(&mut root_node, 0, &nodes, 0);
         if added != node_count - 1 {
-            println!("Warning: not all nodes were added to the tree");
+            unreachable!("typetree parsing: not all nodes were added to the tree");
         }
         Ok(root_node)
     }
@@ -268,7 +289,8 @@ impl TypeTreeNode {
             node: &'a TypeTreeNode,
         ) -> Result<(), std::io::Error> {
             node_out.write_i16::<B>(node.m_Version as i16)?;
-            node_out.write_u8(node.m_Level)?;
+            todo!();
+            // node_out.write_u8(node.m_Level)?;
             node_out.write_u8(node.m_TypeFlags as u8)?;
             node_out.write_u32::<B>(write_string(
                 cache,
@@ -283,7 +305,8 @@ impl TypeTreeNode {
                 common_offset_map,
             ))?;
             node_out.write_i32::<B>(node.m_ByteSize)?;
-            node_out.write_i32::<B>(node.m_Index.unwrap())?;
+            todo!();
+            // node_out.write_i32::<B>(node.m_Index.unwrap())?;
             node_out.write_i32::<B>(node.m_MetaFlag.unwrap())?;
             if version >= 19 {
                 node_out.write_u64::<B>(node.m_RefTypeHash.unwrap_or(0))?;
