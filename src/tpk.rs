@@ -87,9 +87,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 use bitflags::bitflags;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
+use rustc_hash::FxHashMap;
 
 use std::borrow::Cow;
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io::Read;
 
 use byteorder::{LittleEndian, ReadBytesExt};
@@ -235,7 +236,7 @@ pub enum TpkDataType {
 pub struct TpkTypeTreeBlob {
     pub creation_time: i64,
     pub versions: Vec<UnityVersion>,
-    pub class_information: HashMap<ClassId, Vec<(UnityVersion, Option<UnityClass>)>>,
+    pub class_information: FxHashMap<ClassId, Vec<(UnityVersion, Option<UnityClass>)>>,
     pub common_string: TpkCommonString,
     pub node_buffer: Vec<TpkUnityNode>,
     pub string_buffer: Vec<String>,
@@ -432,7 +433,8 @@ impl TpkTypeTreeBlob {
         }
 
         let class_count = reader.read_i32::<LittleEndian>()? as usize;
-        let mut class_information = HashMap::with_capacity(class_count);
+        let mut class_information =
+            FxHashMap::with_capacity_and_hasher(class_count, Default::default());
         for _ in 0..class_count {
             let class = TpkClassInformation::read(reader)?;
             class_information.insert(ClassId(class.id), class.classes);
@@ -479,7 +481,7 @@ impl TpkTypeTreeBlob {
         self.get_typetree_node_for_class(class, false)
     }
 
-    fn get_typetree_node_for_class(
+    pub fn get_typetree_node_for_class(
         &self,
         class: &UnityClass,
         editor: bool,
