@@ -426,19 +426,21 @@ impl TypeTreeNode {
             "string" => String,
             "map" => Map,
             "Type" => TodoType,
+            "Array" => Array,
             "TypelessData" => Untyped,
             "ReferencedObject" | "ReferencedObjectData" | "ManagedReferencesRegistry" => {
                 TodoReferenced
             }
             _ => match self.children.len() {
                 0 => Empty,
-                1 if self.children[0].m_Type == "Array" => Array,
+                1 if self.children[0].m_Type == "Array" => ArrayWrapper,
                 _ => Struct,
             },
         }
     }
 }
 
+#[derive(Debug)]
 pub enum TypetreeNodeKind {
     Bool,
     U8,
@@ -456,6 +458,16 @@ pub enum TypetreeNodeKind {
     Map,
     Untyped,
     Empty,
+    /// ```typetree
+    /// vector m_Component <- ArrayWrapper
+    ///   Array Array      <- Array
+    ///     int size
+    ///     ComponentPair data
+    ///       PPtr<Component> component
+    ///         int m_FileID
+    ///         SInt64 m_PathID
+    /// ```
+    ArrayWrapper,
     Array,
     Struct,
 

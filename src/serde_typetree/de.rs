@@ -133,7 +133,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
                 data: self.reader.read_bytes::<B>()?.into_iter(),
             }),
             Kind::Empty => visitor.visit_unit(),
-            Kind::Array => self.deserialize_seq(visitor),
+            Kind::ArrayWrapper | Kind::Array => self.deserialize_seq(visitor),
             Kind::Struct => {
                 let result = visitor.visit_map(StructDeserializer::new(self));
                 if self.typetree.requires_align() {
