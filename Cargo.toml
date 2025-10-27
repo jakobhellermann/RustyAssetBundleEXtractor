@@ -33,59 +33,30 @@ compression-lz4 = ["dep:lz4_flex"]
 compression-lzma = ["dep:lzma-rs"]
 
 [dependencies]
-# Binary Reader/Write - https://crates.io/crates/binary-reader
-# binary-reader = "0.4.5"
+# parsing
 byteorder = "1.5"
-
-# LZMA - https://crates.io/crates/lzma-rs
-lzma-rs = { version = "0.3.0", optional = true }
-
-# LZHAM - https://crates.io/crates/lzham
-# lzham = "0.1.1" - like never used, needs investigation about how Unity uses it
-
-# BROTLI - https://crates.io/crates/brotli
-brotli = { version = "8.0", optional = true }
-
-# LZ4 - https://crates.io/crates/lz4_flex
-lz4_flex = { version = "0.11", default-features = false, features = [
-    "std",
-], optional = true }
-
-lz4 = { version = "1.28", optional = true }
-
-# FMOD - https://crates.io/crates/libfmod
-# libfmod = "2.2.606" - no wasm support (due to having to provide .dll/.so)
-
-# Texture De/Compression - https://crates.io/crates/libktx_rs_sys
-# libktx-rs-sys = "0.3.3+v4.0.0" - no wasm support
-# basis-universal = "0.2.0" - no wasm support (yet, can be patched in)
-
-# Image Editing - https://crates.io/crates/image
-# image = "0.24.5"
-
-# Virtual FileSystem - https://crates.io/crates/vfs
-# vfs = "0.9.0"
-
-# ZipFile Handling - https://crates.io/crates/vfs-zip
-# vfs-zip = "0.2.1" - no wasm support (bzip2)
-
-# bitflag - https://crates.io/crates/bitflags
 bitflags = "2.9"
 num_enum = { version = "0.7", default-features = false }
+
+# compression formats
+lzma-rs = { version = "0.3.0", optional = true }
+brotli = { version = "8.0", optional = true }
+lz4_flex = { version = "0.11", default-features = false, features = ["std"], optional = true }
+lz4 = { version = "1.28", optional = true } # this is a c based library, which supports the lz4hc quality preset
 
 # UnityCN Encryption
 aes = { version = "0.8.2", optional = true }
 cbc = { version = "0.1.2", optional = true }
 
-# Object Serialization & Export
+# serialization
 serde = "1.0"
 serde_derive = "1.0"
 serde_path_to_error = { version = "0.1.17", optional = true }
-rustc-hash = "2.1"
-elsa = "1.11"
 
-# todo: find a simple crate with less traits and dependencies
+elsa = "1.11"
+rustc-hash = "2.1"
 md4 = "0.10"
+
 
 [dev-dependencies]
 anyhow = "1.0"
