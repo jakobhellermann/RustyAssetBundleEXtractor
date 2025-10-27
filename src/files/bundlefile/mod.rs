@@ -26,6 +26,8 @@ use num_enum::TryFromPrimitive;
 use std::io::{Error, Read, Seek, Write};
 use std::str::FromStr;
 
+const MAX_BLOCK_UNCOMPRESSED_SIZE: usize = 64 * 1024 * 1024;
+
 bitflags! {
     struct ArchiveFlags: u32 {
         const COMPRESSION_TYPE_MASK = 0x3f;
@@ -494,7 +496,10 @@ impl BundleFile {
         // jump to last level
         // TODO - keep the levels for use in low-memory block decompressor strategy
         reader.seek(std::io::SeekFrom::Current(
-            ((level_count - 1).saturating_mul(8)) as i64,
+            ((level_count
+                .checked_sub(1)
+                .ok_or_else(invalid_data_generic)?)
+            .saturating_mul(8)) as i64,
         ))?;
 
         let mut m_BlocksInfo = StorageBlock {
@@ -517,7 +522,9 @@ impl BundleFile {
             m_BlocksInfo.flags |= CompressionType::Lzma as u32;
         }
 
-        let mut blocks_info_bytes = Vec::with_capacity(m_BlocksInfo.uncompressed_size as usize);
+        let mut blocks_info_bytes = Vec::with_capacity(
+            (m_BlocksInfo.uncompressed_size as usize).min(MAX_BLOCK_UNCOMPRESSED_SIZE),
+        );
 
         decompress_block(
             reader,
@@ -619,7 +626,9 @@ fn read_unityfs_info<R: Read + Seek>(
 
     let mut decryptor = None;
 
-    let mut blocks_info_bytes = Vec::with_capacity(block_info.uncompressed_size as usize);
+    let mut blocks_info_bytes = Vec::with_capacity(
+        (block_info.uncompressed_size as usize).min(MAX_BLOCK_UNCOMPRESSED_SIZE),
+    );
     if block_info.flags & ArchiveFlags::BLOCKS_INFO_AT_THE_END.bits() != 0 {
         // 0x80 BlocksInfoAtTheEnd
         let position = reader.stream_position()?;
@@ -636,7 +645,9 @@ fn read_unityfs_info<R: Read + Seek>(
         {
             decryptor = Some(ArchiveStorageDecryptor::from_reader(
                 reader,
-                config.unitycn_key.unwrap(),
+                config.unitycn_key.ok_or_else(|| {
+                    std::io::Error::other("Bundle is encrypted, but no UnityCN key was provided")
+                })?,
             )?);
         }
         decompress_block(
@@ -690,7 +701,7 @@ fn decompress_block<R: Read + Seek, W: Write>(
     #[allow(unused)] index: usize,
     #[allow(unused)] decryptor: Option<&ArchiveStorageDecryptor>,
 ) -> Result<(), Error> {
-    match CompressionType::try_from(block.flags & 0x3F).unwrap() {
+    match CompressionType::try_from(block.flags & 0x3F).map_err(|_| invalid_data_generic())? {
         #[cfg(not(feature = "compression-lzma"))]
         CompressionType::Lzma => {
             return Err(std::io::Error::new(
@@ -711,7 +722,7 @@ fn decompress_block<R: Read + Seek, W: Write>(
                     ..Default::default()
                 },
             )
-            .unwrap();
+            .map_err(invalid_data)?;
 
             Ok(())
         }
@@ -727,6 +738,7 @@ fn decompress_block<R: Read + Seek, W: Write>(
             let mut compressed = reader.read_bytes_sized(block.compressed_size as usize)?;
 
             if block.flags & 0x100 > 0 {
+                decryptor.ok_or_else(|| invalid_data("Bundle contains encrypted blocks, but doesn't have encryption enabled in header"))?;
                 // UnityCN encryption
                 decryptor.unwrap().decrypt_block(
                     &mut compressed,
@@ -734,14 +746,23 @@ fn decompress_block<R: Read + Seek, W: Write>(
                     index,
                 )?;
             }
-            let data =
-                lz4_flex::block::decompress(&compressed, block.uncompressed_size as usize).unwrap();
+
+            if block.uncompressed_size as usize > MAX_BLOCK_UNCOMPRESSED_SIZE {
+                return Err(std::io::Error::other(format!(
+                    "Bundle block size {} exceeds maximum allowed of {} bytes",
+                    block.uncompressed_size, MAX_BLOCK_UNCOMPRESSED_SIZE
+                )));
+            }
+
+            let data = lz4_flex::block::decompress(&compressed, block.uncompressed_size as usize)
+                .map_err(invalid_data)?;
             writer.write_all(&data)?;
             Ok(())
         }
-        CompressionType::Lzham => {
-            panic!("LZHAM is not supported");
-        }
+        CompressionType::Lzham => Err(std::io::Error::new(
+            std::io::ErrorKind::Unsupported,
+            "lzham compression format is not supported",
+        )),
         CompressionType::None => {
             std::io::copy(&mut reader.take(block.compressed_size as u64), writer)?;
             Ok(())
@@ -786,4 +807,15 @@ fn read_chunk_slice<'a, const C: usize>(reader: &mut &'a [u8]) -> &'a [u8] {
             data
         }
     }
+}
+
+fn invalid_data<E>(error: E) -> std::io::Error
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+}
+
+fn invalid_data_generic() -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::InvalidData, "bundle file is invalid")
 }
