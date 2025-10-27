@@ -11,6 +11,7 @@ pub use provider::TypeTreeProvider;
 
 use crate::commonstring::COMMONSTRING;
 use crate::read_ext::ReadUrexExt;
+use crate::read_ext::invalid_data;
 use crate::write_ext::WriteExt;
 use bitflags::bitflags;
 use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt};
@@ -220,11 +221,11 @@ impl TypeTreeNode {
 
         let mut root_node = nodes
             .first()
-            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidData, "typetree"))?
+            .ok_or_else(|| invalid_data("File contains invalid typetree"))?
             .clone();
         let added = add_children(&mut root_node, &nodes, 0);
         if added != node_count - 1 {
-            println!("Warning: not all nodes were added to the tree");
+            return Err(invalid_data("File contains invalid typetree"));
         }
         Ok(root_node)
     }
