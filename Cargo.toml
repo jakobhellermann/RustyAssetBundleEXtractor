@@ -10,13 +10,12 @@ include = [
     "LICENSE-MIT",
     "COPYRIGHT"
 ]
-authors = ["Rudolf Kolbe <rkolbe96@gmail.com>"]
-description = "wip UnityRustExtractor and patcher"
-documentation = "https://docs.rs/rabes"
-homepage = "https://crates.io/crates/rabex"
+authors = ["Rudolf Kolbe <rkolbe96@gmail.com>", "Jakob Hellermann <jakobhellermann@protonmail.com>"]
+description = "Tools for parsing and writing unity files, bundles and typetrees"
+documentation = "https://docs.rs/rabex"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/UniversalGameExtraction/RustyAssetBundleEXtractor"
+repository = "https://github.com/jakobhellermann/RustyAssetBundleEXtractor"
 
 [features]
 default = ["embed-tpk", "compression-lzma", "compression-lz4"]
