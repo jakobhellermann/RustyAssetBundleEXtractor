@@ -1,6 +1,8 @@
 use byteorder::{ByteOrder, ReadBytesExt};
 use std::io::Seek;
 
+const MAX_READ_BYTES_LEN: usize = 1024 * 1024 * 1024 * 1; // 1GiB
+
 macro_rules! generate_read_array_method {
     ($name:ident $read_into_name:ident $typ:ty) => {
         // #[doc = "Reads an array of [`" $typ "`]s. If len is none the reader will determine the length by reading it."]
@@ -53,12 +55,12 @@ pub trait ReadUrexExt: ReadBytesExt {
     }
 
     fn read_bytes_sized(&mut self, len: usize) -> Result<Vec<u8>, std::io::Error> {
-        let threshold = 1024 * 1024 * 1024 * 16;
-        if len > threshold {
+        if len > MAX_READ_BYTES_LEN {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::OutOfMemory,
                 format!(
-                    "Attempted to make an allocation of {len} bytes, exceeding the threshold {threshold}",
+                    "Attempted to make an allocation of {len} bytes, exceeding the threshold {}",
+                    MAX_READ_BYTES_LEN
                 ),
             ));
         }
