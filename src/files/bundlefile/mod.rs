@@ -11,6 +11,7 @@ pub use builder::BundleFileBuilder;
 pub use config::ExtractionConfig;
 pub use reader::BundleFileReader;
 
+use crate::files::bundlefile::config::FallbackUnityVersion;
 use crate::unity_version::UnityVersion;
 use crate::write_ext::{WriteExt, WriteSeekExt};
 use crate::{
@@ -135,13 +136,6 @@ impl BundleFileHeader {
             size: 0,
         })
     }
-
-    fn get_revision_tuple(&self, config: &ExtractionConfig) -> (u16, u16, u16) {
-        self.unity_revision
-            .as_ref()
-            .unwrap_or_else(|| config.fallback_unity_version.as_ref().expect("Bundle file has no unity version number, and none is specified in ExtractionConfig"))
-            .version_tuple()
-    }
 }
 
 fn write_infoblock(block_infos: &[StorageBlock], files: &[FileEntry]) -> Result<Vec<u8>, Error> {
@@ -241,7 +235,7 @@ fn write_fs<W: Write + Seek>(
     files: &[FileEntry],
     uncompressed_data: &[u8],
 ) -> Result<(), Error> {
-    let use_new_archive_flags = use_new_archive_flags(header, &ExtractionConfig::default());
+    let use_new_archive_flags = use_new_archive_flags(header, &ExtractionConfig::default())?;
     let info_block_flags = match use_new_archive_flags {
         true => (ArchiveFlags::BLOCKS_AND_DIRECTORY_INFO_COMBINED
             | ArchiveFlags::BLOCK_INFO_NEED_PADDING_AT_START)
@@ -569,13 +563,24 @@ impl BundleFile {
     }
 }
 
-fn use_new_archive_flags(m_Header: &BundleFileHeader, config: &ExtractionConfig) -> bool {
-    let version = m_Header.get_revision_tuple(config);
-    let old = (version < (2020, 0, 0))
-        | ((version.0 == 2020) & (version < (2020, 3, 34)))
-        | ((version.0 == 2021) & (version < (2021, 3, 2)))
-        | ((version.0 == 2022) & (version < (2022, 1, 1)));
-    !old
+fn use_new_archive_flags(
+    m_Header: &BundleFileHeader,
+    config: &ExtractionConfig,
+) -> Result<bool, std::io::Error> {
+    match (&config.fallback_unity_version, &m_Header.unity_revision) {
+        (FallbackUnityVersion::Current, _) => Ok(true),
+        (_, Some(version)) | (FallbackUnityVersion::Exact(version), None) => {
+            let version = version.version_tuple();
+            let old = (version < (2020, 0, 0))
+                | ((version.0 == 2020) & (version < (2020, 3, 34)))
+                | ((version.0 == 2021) & (version < (2021, 3, 2)))
+                | ((version.0 == 2022) & (version < (2022, 1, 1)));
+            Ok(!old)
+        }
+        (FallbackUnityVersion::Error, None) => Err(std::io::Error::other(
+            "Bundle file contains no unity version information, cannot deserialize. If the file is not older than `2020.3.34, 2020.3.2, 2022.1.1`, specify a `FallbackUnityVersion::Current` or an exact version.",
+        )),
+    }
 }
 
 #[allow(clippy::type_complexity)]
@@ -591,7 +596,7 @@ fn read_unityfs_info<R: Read + Seek>(
     ),
     Error,
 > {
-    let use_new_archive_flags = use_new_archive_flags(m_Header, config);
+    let use_new_archive_flags = use_new_archive_flags(m_Header, config)?;
 
     //ReadHeader
     m_Header.size = reader.read_i64::<BigEndian>()? as u32;

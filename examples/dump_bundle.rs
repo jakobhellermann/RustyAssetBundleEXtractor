@@ -9,7 +9,7 @@ fn main() -> Result<()> {
     let path = std::env::args()
         .nth(1)
         .ok_or_else(|| anyhow::anyhow!("Expected path to unity bundle argument"))?;
-    let config = ExtractionConfig::default();
+    let config = ExtractionConfig::default().assume_recent_unity();
 
     let file = File::open(path)?;
     let mut reader = Cursor::new(unsafe { memmap2::Mmap::map(&file)? });
@@ -21,7 +21,12 @@ fn main() -> Result<()> {
         "{:?} {} {}",
         header.signature,
         header.version,
-        header.unity_revision.as_ref().unwrap(),
+        header
+            .unity_revision
+            .as_ref()
+            .map(ToString::to_string)
+            .as_deref()
+            .unwrap_or("unknown unity version"),
     );
 
     let mut size_all = 0;
