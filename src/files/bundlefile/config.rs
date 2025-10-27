@@ -17,6 +17,11 @@ impl ExtractionConfig {
         }
     }
 
+    pub fn with_fallback_unity_version(mut self, fallback_unity_version: UnityVersion) -> Self {
+        self.fallback_unity_version = Some(fallback_unity_version);
+        self
+    }
+
     pub fn with_unitycn_key(mut self, key: [u8; 16]) -> Self {
         self.unitycn_key = Some(key);
         self
