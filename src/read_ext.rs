@@ -5,11 +5,14 @@ const MAX_READ_BYTES_LEN: usize = 1024 * 1024 * 1024 * 1; // 1GiB
 
 macro_rules! generate_read_array_method {
     ($name:ident $read_into_name:ident $typ:ty) => {
-        // #[doc = "Reads an array of [`" $typ "`]s. If len is none the reader will determine the length by reading it."]
-        fn $name<T: ByteOrder>(&mut self, len: Option<usize>) -> Result<Vec<$typ>, std::io::Error> {
-            let len = len.unwrap_or_else(|| self.read_array_len::<T>().unwrap());
+        // #[doc = "Reads an array of [`" $typ "`]s."]
+        fn $name<B: ByteOrder>(&mut self) -> Result<Vec<$typ>, std::io::Error> {
+            let len = self.read_array_len::<B>()?;
+            if len * std::mem::size_of::<$typ>() > MAX_READ_BYTES_LEN {
+                return Err(error_oom(len));
+            }
             let mut buf = vec![0; len];
-            self.$read_into_name::<T>(&mut buf)?;
+            self.$read_into_name::<B>(&mut buf)?;
             Ok(buf)
         }
     };
@@ -56,13 +59,7 @@ pub trait ReadUrexExt: ReadBytesExt {
 
     fn read_bytes_sized(&mut self, len: usize) -> Result<Vec<u8>, std::io::Error> {
         if len > MAX_READ_BYTES_LEN {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::OutOfMemory,
-                format!(
-                    "Attempted to make an allocation of {len} bytes, exceeding the threshold {}",
-                    MAX_READ_BYTES_LEN
-                ),
-            ));
+            return Err(error_oom(len));
         }
         let mut buf = vec![0; len];
         self.read_exact(&mut buf)?;
@@ -85,14 +82,7 @@ pub trait ReadUrexExt: ReadBytesExt {
         Ok(c)
     }
 
-    generate_read_array_method!(read_i16_array read_i16_into i16);
     generate_read_array_method!(read_i32_array read_i32_into i32);
-    generate_read_array_method!(read_i64_array read_i64_into i64);
-    generate_read_array_method!(read_u16_array read_u16_into u16);
-    generate_read_array_method!(read_u32_array read_u32_into u32);
-    generate_read_array_method!(read_u64_array read_u64_into u64);
-    //generate_read_array_method!(f32);
-    //generate_read_array_method!(f64);
 }
 
 pub trait ReadSeekUrexExt: ReadUrexExt + Seek {
@@ -113,3 +103,20 @@ pub trait ReadSeekUrexExt: ReadUrexExt + Seek {
 
 impl<R: std::io::Read + ?Sized> ReadUrexExt for R {}
 impl<R: std::io::Read + Seek + ?Sized> ReadSeekUrexExt for R {}
+
+fn error_oom(len: usize) -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::OutOfMemory,
+        format!(
+            "Attempted to make an allocation of {len} bytes, exceeding the threshold {}",
+            MAX_READ_BYTES_LEN
+        ),
+    )
+}
+
+pub(crate) fn invalid_data<E>(error: E) -> std::io::Error
+where
+    E: Into<Box<dyn std::error::Error + Send + Sync>>,
+{
+    std::io::Error::new(std::io::ErrorKind::InvalidData, error)
+}

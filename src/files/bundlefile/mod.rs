@@ -7,6 +7,7 @@ pub mod builder;
 mod config;
 pub mod reader;
 
+use crate::read_ext::invalid_data;
 pub use builder::BundleFileBuilder;
 pub use config::{ExtractionConfig, FallbackUnityVersion};
 pub use reader::BundleFileReader;
@@ -806,13 +807,6 @@ fn read_chunk_slice<'a, const C: usize>(reader: &mut &'a [u8]) -> &'a [u8] {
             data
         }
     }
-}
-
-fn invalid_data<E>(error: E) -> std::io::Error
-where
-    E: Into<Box<dyn std::error::Error + Send + Sync>>,
-{
-    std::io::Error::new(std::io::ErrorKind::InvalidData, error)
 }
 
 fn invalid_data_generic() -> std::io::Error {

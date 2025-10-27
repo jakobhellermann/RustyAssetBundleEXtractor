@@ -295,7 +295,7 @@ impl SerializedType {
                     typ.m_NameSpace = Some(reader.read_cstr()?);
                     typ.m_AsmName = Some(reader.read_cstr()?);
                 } else {
-                    typ.m_TypeDependencies = reader.read_i32_array::<B>(None)?;
+                    typ.m_TypeDependencies = reader.read_i32_array::<B>()?;
                 }
             }
         }
@@ -443,7 +443,10 @@ impl ObjectInfo {
         } else {
             objectInfo.m_Offset = reader.read_u32::<B>()? as i64;
         }
-        objectInfo.m_Offset += header.m_DataOffset;
+        objectInfo.m_Offset = objectInfo
+            .m_Offset
+            .checked_add(header.m_DataOffset)
+            .ok_or_else(invalid_data_generic)?;
         objectInfo.m_Size = reader.read_u32::<B>()?;
         objectInfo.m_TypeID = reader.read_i32::<B>()?;
         if header.m_Version < SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits() {
@@ -1383,4 +1386,11 @@ fn write_n_zeroes<W: Write>(writer: &mut W, n: usize) -> std::io::Result<()> {
         remaining -= to_write;
     }
     Ok(())
+}
+
+fn invalid_data_generic() -> std::io::Error {
+    std::io::Error::new(
+        std::io::ErrorKind::InvalidData,
+        "serialized file is invalid",
+    )
 }
