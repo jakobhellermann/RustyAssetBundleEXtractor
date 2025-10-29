@@ -12,16 +12,13 @@ pub use builder::BundleFileBuilder;
 pub use config::{ExtractionConfig, FallbackUnityVersion};
 pub use reader::BundleFileReader;
 
+use crate::archive_storage_manager::ArchiveStorageDecryptor;
+use crate::files::unityfile::{FileEntry, UnityFile};
+use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
 use crate::unity_version::UnityVersion;
 use crate::write_ext::{WriteExt, WriteSeekExt};
-use crate::{
-    archive_storage_manager::ArchiveStorageDecryptor,
-    files::unityfile::{FileEntry, UnityFile},
-    read_ext::{ReadSeekUrexExt, ReadUrexExt},
-};
 use bitflags::bitflags;
-use byteorder::WriteBytesExt;
-use byteorder::{BigEndian, ReadBytesExt};
+use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use num_enum::TryFromPrimitive;
 use std::io::{Error, Read, Seek, Write};
 use std::str::FromStr;

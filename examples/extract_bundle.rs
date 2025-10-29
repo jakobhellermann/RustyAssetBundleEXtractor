@@ -1,6 +1,5 @@
 use anyhow::Result;
-use rabex::files::bundlefile::BundleFileReader;
-use rabex::files::bundlefile::ExtractionConfig;
+use rabex::files::bundlefile::{BundleFileReader, ExtractionConfig};
 use std::fs::File;
 use std::io::{Cursor, Read, Seek};
 use std::path::Path;

@@ -6,12 +6,10 @@ mod provider;
 pub mod typetree_cache;
 
 use md4::Digest;
-pub use provider::NullTypeTreeProvider;
-pub use provider::TypeTreeProvider;
+pub use provider::{NullTypeTreeProvider, TypeTreeProvider};
 
 use crate::commonstring::COMMONSTRING;
-use crate::read_ext::ReadUrexExt;
-use crate::read_ext::invalid_data;
+use crate::read_ext::{ReadUrexExt, invalid_data};
 use crate::write_ext::WriteExt;
 use bitflags::bitflags;
 use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt};

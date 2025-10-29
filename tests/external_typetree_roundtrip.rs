@@ -1,6 +1,7 @@
 mod external_test_data;
 
-use std::{io::Cursor, path::Path};
+use std::io::Cursor;
+use std::path::Path;
 
 use anyhow::{Context, Result};
 use byteorder::LittleEndian;

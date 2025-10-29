@@ -1,12 +1,8 @@
 use anyhow::Result;
-use rabex::files::bundlefile::BundleFileBuilder;
-use rabex::files::bundlefile::CompressionType;
-use rabex::files::serializedfile::FileIdentifier;
-use rabex::files::serializedfile::build_common_offset_map;
+use rabex::files::bundlefile::{BundleFileBuilder, CompressionType};
 use rabex::files::serializedfile::builder::SerializedFileBuilder;
-use rabex::objects::ClassId;
-use rabex::objects::ClassIdType;
-use rabex::objects::PPtr;
+use rabex::files::serializedfile::{FileIdentifier, build_common_offset_map};
+use rabex::objects::{ClassId, ClassIdType, PPtr};
 use rabex::tpk::TpkTypeTreeBlob;
 use rabex::typetree::typetree_cache::TypeTreeCache;
 use serde_derive::Serialize;

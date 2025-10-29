@@ -3,8 +3,7 @@
 use std::io::Cursor;
 
 use rabex::files::BundleFile;
-use rabex::files::bundlefile::ExtractionConfig;
-use rabex::files::bundlefile::{self, CompressionType};
+use rabex::files::bundlefile::{self, CompressionType, ExtractionConfig};
 
 #[test]
 fn roundtrip_uncompressed_2020() -> Result<(), std::io::Error> {

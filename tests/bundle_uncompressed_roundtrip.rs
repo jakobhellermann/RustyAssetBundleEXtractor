@@ -1,12 +1,7 @@
 use std::io::Cursor;
 
-use rabex::{
-    files::bundlefile::ExtractionConfig,
-    files::{
-        BundleFile,
-        bundlefile::{self, CompressionType},
-    },
-};
+use rabex::files::BundleFile;
+use rabex::files::bundlefile::{self, CompressionType, ExtractionConfig};
 
 #[test]
 fn check_uncompressed_2020() -> Result<(), std::io::Error> {

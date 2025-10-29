@@ -82,11 +82,9 @@ use crate::serde_typetree;
 use crate::tpk::TpkTypeTreeBlob;
 use crate::typetree::{TypeTreeNode, TypeTreeProvider};
 use crate::unity_version::UnityVersion;
-use crate::write_ext::WriteExt;
-use crate::write_ext::WriteSeekExt;
+use crate::write_ext::{WriteExt, WriteSeekExt};
 use bitflags::bitflags;
-use byteorder::WriteBytesExt;
-use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt};
+use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 
 use num_enum::TryFromPrimitive;
 use rustc_hash::FxHashMap;

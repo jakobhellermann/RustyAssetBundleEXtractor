@@ -1,4 +1,5 @@
-use std::{io::Cursor, path::Path};
+use std::io::Cursor;
+use std::path::Path;
 
 use anyhow::Result;
 use rabex::files::SerializedFile;

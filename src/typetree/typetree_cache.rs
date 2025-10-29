@@ -3,8 +3,7 @@ use std::borrow::Cow;
 use crate::objects::ClassId;
 #[cfg(feature = "embed-tpk")]
 use crate::tpk::TpkTypeTreeBlob;
-use crate::typetree::TypeTreeNode;
-use crate::typetree::TypeTreeProvider;
+use crate::typetree::{TypeTreeNode, TypeTreeProvider};
 use crate::unity_version::UnityVersion;
 
 /// [`TypeTreeProvider`] which caches the results from the underlying provider.

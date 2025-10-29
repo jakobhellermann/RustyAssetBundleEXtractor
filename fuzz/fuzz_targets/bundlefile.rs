@@ -3,7 +3,8 @@
 use std::io::Cursor;
 
 use libfuzzer_sys::fuzz_target;
-use rabex::files::{BundleFile, bundlefile::ExtractionConfig};
+use rabex::files::BundleFile;
+use rabex::files::bundlefile::ExtractionConfig;
 
 fuzz_target!(|data: &[u8]| {
     let mut reader = Cursor::new(data);

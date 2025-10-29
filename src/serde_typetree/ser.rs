@@ -8,7 +8,8 @@ use byteorder::{ByteOrder, WriteBytesExt};
 use serde::Serialize;
 use serde::ser::Impossible;
 
-use crate::{serde_typetree::Error, typetree::TypeTreeNode};
+use crate::serde_typetree::Error;
+use crate::typetree::TypeTreeNode;
 
 /// Serialize the given data to typetree bytes
 pub fn to_vec<T: Serialize + ?Sized, B: ByteOrder + 'static>(

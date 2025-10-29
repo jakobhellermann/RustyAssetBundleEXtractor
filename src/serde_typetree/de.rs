@@ -4,15 +4,15 @@ use std::marker::PhantomData;
 use super::{Error, Result};
 use byteorder::{ByteOrder, ReadBytesExt};
 use rustc_hash::FxHashSet;
-use serde::de::Error as _;
-use serde::de::{DeserializeSeed, IgnoredAny, IntoDeserializer, MapAccess, SeqAccess, Visitor};
+use serde::de::{
+    DeserializeSeed, Error as _, IgnoredAny, IntoDeserializer, MapAccess, SeqAccess, Visitor,
+};
 use serde::{Deserialize, Deserializer as _};
 
 use crate::files::serializedfile::Endianness;
 use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
 use crate::serde_typetree::error::ErrorImpl;
-use crate::typetree::TypeTreeNode;
-use crate::typetree::TypetreeNodeKind as Kind;
+use crate::typetree::{TypeTreeNode, TypetreeNodeKind as Kind};
 
 /// A structure that deserializes typetree data into Rust values.
 pub struct Deserializer<'cx, R, B> {

@@ -1,6 +1,8 @@
 use std::borrow::Cow;
 
-use crate::{UnityVersion, objects::ClassId, tpk::TpkTypeTreeBlob};
+use crate::UnityVersion;
+use crate::objects::ClassId;
+use crate::tpk::TpkTypeTreeBlob;
 
 use super::TypeTreeNode;
 

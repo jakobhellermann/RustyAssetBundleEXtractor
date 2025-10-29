@@ -95,8 +95,9 @@ use std::io::Read;
 
 use byteorder::{LittleEndian, ReadBytesExt};
 
+use crate::objects::ClassId;
+use crate::typetree::TypeTreeNode;
 use crate::unity_version::{UnityVersion, UnityVersionType};
-use crate::{objects::ClassId, typetree::TypeTreeNode};
 
 /// The TPK container type, contained (possibly compressed) data for the inner format.
 #[derive(Debug, Clone)]

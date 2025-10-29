@@ -1,14 +1,10 @@
 use anyhow::Result;
-use rabex::files::bundlefile::BundleFileReader;
-use rabex::files::bundlefile::ExtractionConfig;
-use rayon::iter::IntoParallelIterator;
-use rayon::iter::ParallelIterator;
+use rabex::files::bundlefile::{BundleFileReader, ExtractionConfig};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use std::fs::File;
 use std::io::Cursor;
 use std::path::PathBuf;
-use std::sync::atomic::AtomicU32;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicU32, AtomicUsize, Ordering};
 use std::time::Instant;
 
 fn main() -> Result<()> {

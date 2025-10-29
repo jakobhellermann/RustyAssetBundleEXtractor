@@ -1,14 +1,12 @@
-use std::{
-    fs::File,
-    io::{Cursor, Read, Seek},
-};
+use std::fs::File;
+use std::io::{Cursor, Read, Seek};
 
 use anyhow::Result;
-use rabex::{
-    files::{BundleFile, SerializedFile, bundlefile::ExtractionConfig},
-    tpk::TpkTypeTreeBlob,
-    typetree::{TypeTreeProvider, typetree_cache::TypeTreeCache},
-};
+use rabex::files::bundlefile::ExtractionConfig;
+use rabex::files::{BundleFile, SerializedFile};
+use rabex::tpk::TpkTypeTreeBlob;
+use rabex::typetree::TypeTreeProvider;
+use rabex::typetree::typetree_cache::TypeTreeCache;
 
 fn main() -> Result<()> {
     let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());

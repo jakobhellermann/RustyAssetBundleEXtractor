@@ -1,4 +1,5 @@
-use std::{collections::BTreeMap, sync::LazyLock};
+use std::collections::BTreeMap;
+use std::sync::LazyLock;
 
 pub static COMMONSTRING: LazyLock<BTreeMap<u32, &'static str>> = LazyLock::new(|| {
     [

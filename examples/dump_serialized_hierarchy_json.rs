@@ -1,20 +1,15 @@
 #![allow(non_snake_case)]
 use anyhow::Result;
-use rabex::{
-    files::{
-        SerializedFile,
-        bundlefile::{BundleFileReader, ExtractionConfig},
-    },
-    objects::{ClassId, ClassIdType, TypedPPtr},
-    tpk::TpkTypeTreeBlob,
-    typetree::{TypeTreeProvider, typetree_cache::TypeTreeCache},
-};
+use rabex::files::SerializedFile;
+use rabex::files::bundlefile::{BundleFileReader, ExtractionConfig};
+use rabex::objects::{ClassId, ClassIdType, TypedPPtr};
+use rabex::tpk::TpkTypeTreeBlob;
+use rabex::typetree::TypeTreeProvider;
+use rabex::typetree::typetree_cache::TypeTreeCache;
 use rustc_hash::FxHashMap;
 use serde_derive::{Deserialize, Serialize};
-use std::{
-    fs::File,
-    io::{Cursor, Read, Seek},
-};
+use std::fs::File;
+use std::io::{Cursor, Read, Seek};
 
 fn main() -> Result<()> {
     let path = std::env::args()

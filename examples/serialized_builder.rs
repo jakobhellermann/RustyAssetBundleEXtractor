@@ -1,7 +1,9 @@
-use std::{collections::HashMap, io::Cursor};
+use std::collections::HashMap;
+use std::io::Cursor;
 
 use anyhow::Result;
-use rabex::files::serializedfile::{build_common_offset_map, builder::SerializedFileBuilder};
+use rabex::files::serializedfile::build_common_offset_map;
+use rabex::files::serializedfile::builder::SerializedFileBuilder;
 use rabex::objects::{ClassId, ClassIdType, PPtr};
 use rabex::typetree::typetree_cache::TypeTreeCache;
 use serde_derive::Serialize;

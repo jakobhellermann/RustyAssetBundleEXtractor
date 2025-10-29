@@ -1,6 +1,7 @@
 mod external_test_data;
 
-use std::{io::Cursor, path::Path};
+use std::io::Cursor;
+use std::path::Path;
 
 use rabex::files::{SerializedFile, serializedfile};
 use rabex::tpk::TpkTypeTreeBlob;

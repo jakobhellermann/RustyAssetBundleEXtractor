@@ -1,5 +1,6 @@
 use anyhow::Result;
-use rabex::{objects::ClassId, tpk::TpkTypeTreeBlob};
+use rabex::objects::ClassId;
+use rabex::tpk::TpkTypeTreeBlob;
 
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
