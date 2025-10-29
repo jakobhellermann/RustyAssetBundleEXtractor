@@ -1,6 +1,6 @@
 use crate::tpk2rust::{Derives, Tpk2Rust};
 use anyhow::Result;
-use rabex::{UnityVersion, tpk::TpkTypeTreeBlob};
+use rabex::{UnityVersion, objects::ClassId, tpk::TpkTypeTreeBlob};
 use std::str::FromStr;
 
 fn main() -> Result<()> {
@@ -12,12 +12,42 @@ fn main() -> Result<()> {
         .transpose()?;
 
     let tpk = TpkTypeTreeBlob::embedded();
-    let mut tpk2rust = Tpk2Rust::new(&tpk, version.as_ref(), Derives::empty());
+    let version = version.unwrap_or(tpk.versions.last().unwrap().clone());
 
-    let types = ["GameObject", "Transform", "AssetBundle", "MonoBehaviour"];
+    let mut tpk2rust = Tpk2Rust::new(&tpk, &version, Derives::empty());
+
+    for (class_id, versions) in &tpk.class_information {
+        if *class_id == ClassId::Renderer {}
+        let Some(ref unity_class) = versions.last().unwrap().1 else {
+            continue;
+        };
+        let name = &tpk.string_buffer[unity_class.name as usize];
+        let Some(ty) = tpk.get_typetree_node_for_class(unity_class, false) else {
+            continue;
+        };
+    }
+
+    let mut tts = Vec::new();
+    for class_id in tpk.class_ids_at_latest_version() {
+        let Some(tt) = tpk.get_typetree_node(class_id, &version) else {
+            continue;
+        };
+        tts.push(tt);
+    }
+    for tt in &tts {
+        tpk2rust.add(tt);
+    }
+
+    /*let types = [
+        "GameObject",
+        "Transform",
+        "AssetBundle",
+        "MonoBehaviour",
+        "BuildSettings",
+    ];
     for name in types {
         tpk2rust.add_by_name(name);
-    }
+    }*/
 
     print!("{}", tpk2rust.to_rust_code());
 
@@ -35,7 +65,7 @@ mod tpk2rust {
         version: UnityVersion,
 
         tpk: &'tt TpkTypeTreeBlob,
-        name_lookup: FxHashMap<&'tt str, ClassId>,
+        name_lookup: FxHashMap<&'tt str, (ClassId, TypeTreeNode)>,
 
         derives: Derives,
         types: IndexMap<&'tt str, (String, Derives)>,
@@ -44,13 +74,7 @@ mod tpk2rust {
         queue: Vec<(&'tt TypeTreeNode, Derives)>,
     }
     impl<'tt> Tpk2Rust<'tt> {
-        pub fn new(
-            tpk: &'tt TpkTypeTreeBlob,
-            version: Option<&UnityVersion>,
-            derives: Derives,
-        ) -> Self {
-            let version = version.unwrap_or(tpk.versions.last().unwrap());
-
+        pub fn new(tpk: &'tt TpkTypeTreeBlob, version: &UnityVersion, derives: Derives) -> Self {
             let name_lookup: FxHashMap<_, _> = tpk
                 .class_information
                 .iter()
@@ -61,7 +85,10 @@ mod tpk2rust {
                     class.release_root_node?;
 
                     let name = tpk.string_buffer[class.name as usize].as_str();
-                    Some((name, *class_id))
+
+                    let tt = tpk.get_typetree_node_for_class(class, false)?;
+
+                    Some((name, (*class_id, tt)))
                 })
                 .collect();
 
@@ -76,9 +103,8 @@ mod tpk2rust {
             }
         }
 
-        pub fn tt_by_name(&self, name: &str) -> Option<TypeTreeNode> {
-            self.tpk
-                .get_typetree_node(*self.name_lookup.get(name)?, &self.version)
+        pub fn tt_by_name(&self, name: &str) -> Option<&TypeTreeNode> {
+            Some(&self.name_lookup.get(name)?.1)
         }
 
         pub fn to_rust_code(mut self) -> String {
@@ -92,7 +118,7 @@ mod tpk2rust {
                 self.add_by_name(pptr);
             }
 
-            out.push_str("#![allow(non_snake_case, dead_code)]\n");
+            out.push_str("#![allow(non_snake_case, non_camel_case_types, dead_code)]\n");
             out.push_str("use rabex::objects::TypedPPtr;\n");
             if self.derives.contains(Derives::Deserialize) {
                 out.push_str("use serde_derive::Deserialize;\n");
@@ -122,7 +148,8 @@ mod tpk2rust {
         pub fn add_by_name(&mut self, name: &str) {
             let ty = self
                 .tt_by_name(name)
-                .expect(&format!("Couldn't find type '{name}'"));
+                .expect(&format!("Couldn't find type '{name}'"))
+                .clone();
             let ty = Box::leak(Box::new(ty));
             self.add(ty);
         }
@@ -216,7 +243,14 @@ mod tpk2rust {
                 }
                 Kind::PPtr(pptr_name) => {
                     self.add_queue(ty, derives);
-                    Cow::Owned(format!("TypedPPtr<{pptr_name}>"))
+
+                    let name = self
+                        .name_lookup
+                        .get(pptr_name)
+                        .map(|x| x.1.m_Type.as_str())
+                        .unwrap_or(pptr_name);
+
+                    Cow::Owned(format!("TypedPPtr<{name}>"))
                 }
             }
         }
@@ -256,48 +290,62 @@ mod tpk2rust {
 
     impl<'a> From<&'a TypeTreeNode> for Kind<'a> {
         fn from(ty: &'a TypeTreeNode) -> Self {
-            if let "string" = ty.m_Type.as_str() {
-                Kind::Primitive("String")
-            }
-            // array
-            else if let [child] = ty.children.as_slice()
-                && child.m_Type == "Array"
-            {
-                // map
-                if let [_, data] = child.children.as_slice()
-                    && data.m_Type == "pair"
-                    && let [key, value] = data.children.as_slice()
-                {
-                    Kind::Map(key, value)
-                } else {
-                    Kind::List(&child.children[1])
+            use rabex::typetree::TypetreeNodeKind::*;
+            return match ty.classify() {
+                Bool => Kind::Primitive("bool"),
+                U8 => Kind::Primitive("u8"),
+                U16 => Kind::Primitive("u16"),
+                U32 => Kind::Primitive("u32"),
+                U64 => Kind::Primitive("u64"),
+                I8 => Kind::Primitive("i8"),
+                I16 => Kind::Primitive("i16"),
+                I32 => Kind::Primitive("i32"),
+                I64 => Kind::Primitive("i64"),
+                Float => Kind::Primitive("f32"),
+                Double => Kind::Primitive("f64"),
+                Char => Kind::Primitive("char"),
+                String => Kind::Primitive("String"),
+                Map => {
+                    if let [child] = ty.children.as_slice()
+                        && child.m_Type == "Array"
+                        && let [_, data] = child.children.as_slice()
+                        && data.m_Type == "pair"
+                        && let [key, value] = data.children.as_slice()
+                    {
+                        Kind::Map(key, value)
+                    } else {
+                        unreachable!()
+                    }
                 }
-            } else if let Some(pptr_name) = ty.m_Type.strip_prefix("PPtr<") {
-                let pptr_name = pptr_name.strip_suffix('>').unwrap();
-                Kind::PPtr(pptr_name)
-            } else {
-                match ty.m_Type.as_str() {
-                    "bool" => Kind::Primitive("bool"),
-                    "UInt8" => Kind::Primitive("u8"),
-                    "UInt16" | "unsigned short" => Kind::Primitive("u16"),
-                    "UInt32" | "unsigned int" | "Type*" => Kind::Primitive("u32"),
-                    "UInt64" | "unsigned long long" | "FileSize" => Kind::Primitive("u64"),
-                    "SInt8" => Kind::Primitive("i8"),
-                    "SInt16" | "short" => Kind::Primitive("i16"),
-                    "SInt32" | "int" => Kind::Primitive("i32"),
-                    "SInt64" | "long long" => Kind::Primitive("i64"),
-                    "float" => Kind::Primitive("f32"),
-                    "double" => Kind::Primitive("f64"),
-                    "char" => Kind::Primitive("char"),
-                    "pair" => {
+                Untyped => Kind::Primitive("Vec<u8>"),
+                Empty => Kind::Primitive("()"),
+                ArrayWrapper => {
+                    if let [child] = ty.children.as_slice()
+                        && child.m_Type == "Array"
+                        && let [_, data] = child.children.as_slice()
+                    {
+                        Kind::List(data)
+                    } else {
+                        unreachable!()
+                    }
+                }
+                Array => todo!(),
+                Struct => {
+                    if let Some(pptr_name) = ty.m_Type.strip_prefix("PPtr<") {
+                        let pptr_name = pptr_name.strip_suffix('>').unwrap();
+                        Kind::PPtr(pptr_name)
+                    } else if ty.m_Type == "pair" {
                         let [a, b] = ty.children.as_slice() else {
                             panic!("pair with {} elements", ty.children.len());
                         };
                         Kind::Pair(a, b)
+                    } else {
+                        Kind::Other(ty)
                     }
-                    _ => Kind::Other(ty),
                 }
-            }
+                TodoReferenced => todo!(),
+                TodoType => todo!(),
+            };
         }
     }
 
