@@ -267,8 +267,7 @@ impl TpkClassInformation {
 }
 
 bitflags! {
-#[derive(Clone, Debug)]
-pub struct TpkUnityClassFlags : u8 {
+#[derive(Clone, Copy , Debug)] pub struct TpkUnityClassFlags : u8 {
     /// None of the flags apply to this class
     const NONE = 0;
     /// Is the class abstract?
@@ -465,6 +464,50 @@ impl TpkTypeTreeBlob {
         })
     }
 
+    pub fn class_ids(&self) -> impl Iterator<Item = ClassId> {
+        self.class_information.keys().copied()
+    }
+
+    pub fn class_ids_at_version(
+        &self,
+        target_version: &UnityVersion,
+    ) -> impl Iterator<Item = ClassId> {
+        self.class_information
+            .iter()
+            .filter_map(move |(class_id, versions)| {
+                let class = versions
+                    .iter()
+                    .rev()
+                    .find_map(|(version, class)| (target_version >= version).then_some(class))
+                    .unwrap();
+
+                class.is_some().then_some(*class_id)
+            })
+    }
+
+    pub fn class_ids_at_latest_version(&self) -> impl Iterator<Item = ClassId> {
+        self.class_information
+            .iter()
+            .filter_map(move |(class_id, versions)| {
+                let exists_in_latest = versions.last().is_some_and(|last| last.1.is_some());
+                exists_in_latest.then_some(*class_id)
+            })
+    }
+
+    pub fn get_unity_class_for_version(
+        &self,
+        class_id: ClassId,
+        target_version: &UnityVersion,
+    ) -> Option<&UnityClass> {
+        let version_classes = &self.class_information[&class_id];
+
+        version_classes
+            .iter()
+            .rev()
+            .find_map(|(version, class)| (target_version >= version).then_some(class))?
+            .as_ref()
+    }
+
     /// Look up and construct a [`TypeTreeNode`] for the class and unity version.
     /// If you call this method often, consider using [`TpkTypeTreeCache`](crate::typetree::typetree_cache::TypeTreeCache).
     pub fn get_typetree_node(
@@ -472,14 +515,7 @@ impl TpkTypeTreeBlob {
         class_id: ClassId,
         target_version: &UnityVersion,
     ) -> Option<TypeTreeNode> {
-        let version_classes = &self.class_information[&class_id];
-
-        let class = version_classes
-            .iter()
-            .rev()
-            .find_map(|(version, class)| (target_version >= version).then_some(class))?
-            .as_ref()?;
-
+        let class = self.get_unity_class_for_version(class_id, target_version)?;
         self.get_typetree_node_for_class(class, false)
     }
 

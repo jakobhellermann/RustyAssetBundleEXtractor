@@ -185,6 +185,13 @@ pub struct TypedPPtr<T> {
     marker: PhantomData<T>,
 }
 
+impl<T> std::hash::Hash for TypedPPtr<T> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.m_FileID.hash(state);
+        self.m_PathID.hash(state);
+    }
+}
+
 impl<T> Eq for TypedPPtr<T> {}
 impl<T> PartialEq for TypedPPtr<T> {
     fn eq(&self, other: &Self) -> bool {
