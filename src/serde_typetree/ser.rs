@@ -787,7 +787,7 @@ fn ensure_type(tt: &TypeTreeNode, expected: &str) -> Result<(), Error> {
         return Err(Error::custom(format_args!(
             "invalid type: {}, expected {} (at {} {})\n{}",
             tt.m_Type,
-            &expected,
+            expected,
             tt.m_Type,
             tt.m_Name,
             tt.dump(),

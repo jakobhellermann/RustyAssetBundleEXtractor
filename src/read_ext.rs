@@ -1,7 +1,7 @@
 use byteorder::{ByteOrder, ReadBytesExt};
 use std::io::Seek;
 
-const MAX_READ_BYTES_LEN: usize = 1024 * 1024 * 1024 * 1; // 1GiB
+const MAX_READ_BYTES_LEN: usize = 1024 * 1024 * 1024; // 1GiB
 
 macro_rules! generate_read_array_method {
     ($name:ident $read_into_name:ident $typ:ty) => {

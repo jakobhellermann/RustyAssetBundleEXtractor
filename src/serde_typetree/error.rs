@@ -12,7 +12,7 @@ impl Error {
     pub(crate) fn invalid_typetree_type(tt: &TypeTreeNode, expected: &'static str) -> Self {
         Error(Box::new(ErrorImpl::InvalidType(format!(
             "invalid type: {}, expected {} (at {} `{}`)",
-            tt.m_Type, &expected, tt.m_Type, tt.m_Name
+            tt.m_Type, expected, tt.m_Type, tt.m_Name
         ))))
     }
 
