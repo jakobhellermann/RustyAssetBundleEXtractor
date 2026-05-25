@@ -202,7 +202,7 @@ impl<T> Default for TypedPPtr<T> {
     }
 }
 
-impl<T: std::fmt::Debug + 'static> std::fmt::Debug for TypedPPtr<T> {
+impl<T> std::fmt::Debug for TypedPPtr<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct(&format!("TypedPPtr<{}>", std::any::type_name::<T>()))
             .field("m_FileID", &self.m_FileID)
