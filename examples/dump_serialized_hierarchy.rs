@@ -11,22 +11,30 @@ use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 fn main() -> Result<()> {
-    let path = std::env::args()
-        .nth(1)
-        .ok_or_else(|| anyhow::anyhow!("Expected path to unity bundle argument"))?;
-    let data = &mut File::open(path)?;
+    let paths: Vec<String> = std::env::args().skip(1).collect();
+    if paths.is_empty() {
+        anyhow::bail!("Expected path(s) to unity bundle argument");
+    }
 
     let tpk = &TypeTreeCache::embedded();
 
-    if let Ok(mut reader) = BundleFileReader::from_reader(&mut *data, &ExtractionConfig::default())
-    {
-        while let Some(mut file) = reader.next() {
-            let mut data = Cursor::new(file.read()?);
-            print_serialize_hierarchy(&mut data, tpk)?;
+    for path in &paths {
+        if paths.len() > 1 {
+            println!("=== {path} ===");
         }
-    } else {
-        data.seek(SeekFrom::Start(0))?;
-        print_serialize_hierarchy(data, tpk)?;
+        let data = &mut File::open(&path)?;
+
+        if let Ok(mut reader) =
+            BundleFileReader::from_reader(&mut *data, &ExtractionConfig::default())
+        {
+            while let Some(mut file) = reader.next() {
+                let mut data = Cursor::new(file.read()?);
+                print_serialize_hierarchy(&mut data, tpk)?;
+            }
+        } else {
+            data.seek(SeekFrom::Start(0))?;
+            print_serialize_hierarchy(data, tpk)?;
+        }
     }
 
     Ok(())

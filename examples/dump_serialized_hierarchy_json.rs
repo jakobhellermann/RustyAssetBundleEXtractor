@@ -12,24 +12,32 @@ use std::fs::File;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 fn main() -> Result<()> {
-    let path = std::env::args()
-        .nth(1)
-        .ok_or_else(|| anyhow::anyhow!("Expected path to unity bundle argument"))?;
-    let data = &mut File::open(path)?;
+    let paths: Vec<String> = std::env::args().skip(1).collect();
+    if paths.is_empty() {
+        anyhow::bail!("Expected path(s) to unity bundle argument");
+    }
 
     let tpk = &TypeTreeCache::new(TpkTypeTreeBlob::embedded());
 
-    if let Ok(mut reader) = BundleFileReader::from_reader(&mut *data, &ExtractionConfig::default())
-    {
-        while let Some(mut file) = reader.next() {
-            let mut data = Cursor::new(file.read()?);
-            let hierarchy = get_all(&mut data, tpk)?;
+    for path in &paths {
+        if paths.len() > 1 {
+            println!("=== {path} ===");
+        }
+        let data = &mut File::open(&path)?;
+
+        if let Ok(mut reader) =
+            BundleFileReader::from_reader(&mut *data, &ExtractionConfig::default())
+        {
+            while let Some(mut file) = reader.next() {
+                let mut data = Cursor::new(file.read()?);
+                let hierarchy = get_all(&mut data, tpk)?;
+                println!("{}", serde_json::to_string_pretty(&hierarchy)?);
+            }
+        } else {
+            data.seek(SeekFrom::Start(0))?;
+            let hierarchy = get_all(data, tpk)?;
             println!("{}", serde_json::to_string_pretty(&hierarchy)?);
         }
-    } else {
-        data.seek(SeekFrom::Start(0))?;
-        let hierarchy = get_all(data, tpk)?;
-        println!("{}", serde_json::to_string_pretty(&hierarchy)?);
     }
 
     Ok(())
