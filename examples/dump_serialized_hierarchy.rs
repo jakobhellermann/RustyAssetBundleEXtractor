@@ -8,7 +8,7 @@ use rabex::typetree::typetree_cache::TypeTreeCache;
 use serde_derive::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::fs::File;
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 
 fn main() -> Result<()> {
     let path = std::env::args()
@@ -25,6 +25,7 @@ fn main() -> Result<()> {
             print_serialize_hierarchy(&mut data, tpk)?;
         }
     } else {
+        data.seek(SeekFrom::Start(0))?;
         print_serialize_hierarchy(data, tpk)?;
     }
 

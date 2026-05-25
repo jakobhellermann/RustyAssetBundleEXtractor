@@ -9,7 +9,7 @@ use rabex::typetree::typetree_cache::TypeTreeCache;
 use rustc_hash::FxHashMap;
 use serde_derive::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::{Cursor, Read, Seek};
+use std::io::{Cursor, Read, Seek, SeekFrom};
 
 fn main() -> Result<()> {
     let path = std::env::args()
@@ -27,6 +27,7 @@ fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&hierarchy)?);
         }
     } else {
+        data.seek(SeekFrom::Start(0))?;
         let hierarchy = get_all(data, tpk)?;
         println!("{}", serde_json::to_string_pretty(&hierarchy)?);
     }
