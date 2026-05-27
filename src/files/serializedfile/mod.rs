@@ -1222,9 +1222,21 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
     let object_length_pos = writer.stream_position()?;
     writer.write_i32::<B>(0x0FFFFFFF)?; // written later
 
+    // Padding between objects.
+    // Unity 2017/2020/2022 seems use 8 bytes, Unity 6000 uses 16 bytes.
+    // Unity 2023 untested.
+    let big_object_alignment = serialized
+        .m_UnityVersion
+        .as_ref()
+        .is_some_and(|v| v.major >= 6000);
+
     let mut object_count = 0;
     for (mut obj, obj_data) in objects {
-        crate::write_ext::align_vec::<8>(&mut data_writer);
+        if big_object_alignment {
+            crate::write_ext::align_vec::<16>(&mut data_writer);
+        } else {
+            crate::write_ext::align_vec::<8>(&mut data_writer);
+        }
 
         obj.m_Size = obj_data.len() as u32;
         let offset = data_writer.len() as i64;
