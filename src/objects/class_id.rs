@@ -49,7 +49,9 @@ impl ClassId {
     pub const ParticleRenderer: ClassId = ClassId(26);
     pub const Texture: ClassId = ClassId(27);
     pub const Texture2D: ClassId = ClassId(28);
+    // Renamed from: "Scene", "SceneSettings"
     pub const OcclusionCullingSettings: ClassId = ClassId(29);
+    // Renamed from: "RenderManager"
     pub const GraphicsSettings: ClassId = ClassId(30);
     pub const MeshFilter: ClassId = ClassId(33);
     pub const OcclusionPortal: ClassId = ClassId(41);
@@ -59,7 +61,7 @@ impl ClassId {
     pub const Shader: ClassId = ClassId(48);
     pub const TextAsset: ClassId = ClassId(49);
     pub const Rigidbody2D: ClassId = ClassId(50);
-    pub const Physics2DManager: ClassId = ClassId(51);
+    pub const NotificationManager: ClassId = ClassId(52);
     pub const Collider2D: ClassId = ClassId(53);
     pub const Rigidbody: ClassId = ClassId(54);
     pub const PhysicsManager: ClassId = ClassId(55);
@@ -74,7 +76,9 @@ impl ClassId {
     pub const BoxCollider: ClassId = ClassId(65);
     pub const CompositeCollider2D: ClassId = ClassId(66);
     pub const EdgeCollider2D: ClassId = ClassId(68);
+    pub const PolygonColliderBase2D: ClassId = ClassId(69);
     pub const CapsuleCollider2D: ClassId = ClassId(70);
+    pub const AnimationManager: ClassId = ClassId(71);
     pub const ComputeShader: ClassId = ClassId(72);
     pub const AnimationClip: ClassId = ClassId(74);
     pub const ConstantForce: ClassId = ClassId(75);
@@ -92,14 +96,16 @@ impl ClassId {
     pub const AnimatorController: ClassId = ClassId(91);
     pub const GUILayer: ClassId = ClassId(92);
     pub const RuntimeAnimatorController: ClassId = ClassId(93);
-    pub const ScriptMapper: ClassId = ClassId(94);
+    // Renamed from: "ScriptMapper"
+    pub const ShaderNameRegistry: ClassId = ClassId(94);
     pub const Animator: ClassId = ClassId(95);
     pub const TrailRenderer: ClassId = ClassId(96);
     pub const DelayedCallManager: ClassId = ClassId(98);
     pub const TextMesh: ClassId = ClassId(102);
     pub const RenderSettings: ClassId = ClassId(104);
     pub const Light: ClassId = ClassId(108);
-    pub const CGProgram: ClassId = ClassId(109);
+    // Renamed from: "CGProgram"
+    pub const ShaderInclude: ClassId = ClassId(109);
     pub const BaseAnimationTrack: ClassId = ClassId(110);
     pub const Animation: ClassId = ClassId(111);
     pub const MonoBehaviour: ClassId = ClassId(114);
@@ -114,6 +120,7 @@ impl ClassId {
     pub const LensFlare: ClassId = ClassId(123);
     pub const FlareLayer: ClassId = ClassId(124);
     pub const HaloLayer: ClassId = ClassId(125);
+    // Renamed from: "NavMeshLayers", "NavMeshAreas"
     pub const NavMeshProjectSettings: ClassId = ClassId(126);
     pub const HaloManager: ClassId = ClassId(127);
     pub const Font: ClassId = ClassId(128);
@@ -122,7 +129,8 @@ impl ClassId {
     pub const GUITexture: ClassId = ClassId(131);
     pub const GUIText: ClassId = ClassId(132);
     pub const GUIElement: ClassId = ClassId(133);
-    pub const PhysicMaterial: ClassId = ClassId(134);
+    // Renamed from: "PhysicMaterial"
+    pub const PhysicsMaterial: ClassId = ClassId(134);
     pub const SphereCollider: ClassId = ClassId(135);
     pub const CapsuleCollider: ClassId = ClassId(136);
     pub const SkinnedMeshRenderer: ClassId = ClassId(137);
@@ -170,10 +178,10 @@ impl ClassId {
     pub const OffMeshLink: ClassId = ClassId(191);
     pub const OcclusionArea: ClassId = ClassId(192);
     pub const Tree: ClassId = ClassId(193);
+    // Renamed from: "NavMesh"
     pub const NavMeshObsolete: ClassId = ClassId(194);
     pub const NavMeshAgent: ClassId = ClassId(195);
     pub const NavMeshSettings: ClassId = ClassId(196);
-    pub const LightProbesLegacy: ClassId = ClassId(197);
     pub const ParticleSystem: ClassId = ClassId(198);
     pub const ParticleSystemRenderer: ClassId = ClassId(199);
     pub const ShaderVariantCollection: ClassId = ClassId(200);
@@ -186,10 +194,10 @@ impl ClassId {
     pub const Sprite: ClassId = ClassId(213);
     pub const CachedSpriteAtlas: ClassId = ClassId(214);
     pub const ReflectionProbe: ClassId = ClassId(215);
-    pub const ReflectionProbes: ClassId = ClassId(216);
     pub const Terrain: ClassId = ClassId(218);
     pub const LightProbeGroup: ClassId = ClassId(220);
     pub const AnimatorOverrideController: ClassId = ClassId(221);
+    // Renamed from: "UIRenderer"
     pub const CanvasRenderer: ClassId = ClassId(222);
     pub const Canvas: ClassId = ClassId(223);
     pub const RectTransform: ClassId = ClassId(224);
@@ -224,6 +232,7 @@ impl ClassId {
     pub const FixedJoint2D: ClassId = ClassId(255);
     pub const FrictionJoint2D: ClassId = ClassId(256);
     pub const TargetJoint2D: ClassId = ClassId(257);
+    // Reassigned from id: 197
     pub const LightProbes: ClassId = ClassId(258);
     pub const LightProbeProxyVolume: ClassId = ClassId(259);
     pub const SampleClip: ClassId = ClassId(271);
@@ -231,30 +240,39 @@ impl ClassId {
     pub const AudioMixerGroup: ClassId = ClassId(273);
     pub const NScreenBridge: ClassId = ClassId(280);
     pub const AssetBundleManifest: ClassId = ClassId(290);
+    // Renamed from: "UnityAdsSettings"
     pub const UnityAdsManager: ClassId = ClassId(292);
     pub const RuntimeInitializeOnLoadManager: ClassId = ClassId(300);
     pub const CloudWebServicesManager: ClassId = ClassId(301);
+    pub const CloudServiceHandlerBehaviour: ClassId = ClassId(302);
     pub const UnityAnalyticsManager: ClassId = ClassId(303);
     pub const CrashReportManager: ClassId = ClassId(304);
     pub const PerformanceReportingManager: ClassId = ClassId(305);
     pub const UnityConnectSettings: ClassId = ClassId(310);
+    // Renamed from: "AvatarBodyMask"
+    // Reassigned from id: 1011
     pub const AvatarMask: ClassId = ClassId(319);
+    // Renamed from: "DirectorPlayer"
     pub const PlayableDirector: ClassId = ClassId(320);
     pub const VideoPlayer: ClassId = ClassId(328);
+    // Reassigned from id: 327
     pub const VideoClip: ClassId = ClassId(329);
     pub const ParticleSystemForceField: ClassId = ClassId(330);
     pub const SpriteMask: ClassId = ClassId(331);
     pub const WorldAnchor: ClassId = ClassId(362);
     pub const OcclusionCullingData: ClassId = ClassId(363);
-    pub const SmallestEditorClassId: ClassId = ClassId(1000);
+    pub const MarshallingTestObject: ClassId = ClassId(900);
+    // Renamed from: "DataTemplate", "Prefab"
     pub const PrefabInstance: ClassId = ClassId(1001);
     pub const EditorExtensionImpl: ClassId = ClassId(1002);
     pub const AssetImporter: ClassId = ClassId(1003);
+    // Renamed from: "AssetDatabase"
     pub const AssetDatabaseV1: ClassId = ClassId(1004);
     pub const Mesh3DSImporter: ClassId = ClassId(1005);
     pub const TextureImporter: ClassId = ClassId(1006);
     pub const ShaderImporter: ClassId = ClassId(1007);
     pub const ComputeShaderImporter: ClassId = ClassId(1008);
+    pub const AvatarSkeletonMask: ClassId = ClassId(1012);
     pub const AudioImporter: ClassId = ClassId(1020);
     pub const HierarchyState: ClassId = ClassId(1026);
     pub const GUIDSerializer: ClassId = ClassId(1027);
@@ -275,15 +293,19 @@ impl ClassId {
     pub const DDSImporter: ClassId = ClassId(1046);
     pub const InspectorExpandedState: ClassId = ClassId(1048);
     pub const AnnotationManager: ClassId = ClassId(1049);
+    // Renamed from: "MonoAssemblyImporter"
     pub const PluginImporter: ClassId = ClassId(1050);
     pub const EditorUserBuildSettings: ClassId = ClassId(1051);
     pub const PVRImporter: ClassId = ClassId(1052);
     pub const ASTCImporter: ClassId = ClassId(1053);
     pub const KTXImporter: ClassId = ClassId(1054);
     pub const IHVImageFormatImporter: ClassId = ClassId(1055);
+    // Renamed from: "Transition"
     pub const AnimatorStateTransition: ClassId = ClassId(1101);
+    // Renamed from: "State"
     pub const AnimatorState: ClassId = ClassId(1102);
     pub const HumanTemplate: ClassId = ClassId(1105);
+    // Renamed from: "StateMachine"
     pub const AnimatorStateMachine: ClassId = ClassId(1107);
     pub const PreviewAnimationClip: ClassId = ClassId(1108);
     pub const AnimatorTransition: ClassId = ClassId(1109);
@@ -291,15 +313,14 @@ impl ClassId {
     pub const AnimatorTransitionBase: ClassId = ClassId(1111);
     pub const SubstanceImporter: ClassId = ClassId(1112);
     pub const LightmapParameters: ClassId = ClassId(1113);
+    // Renamed from: "LightmapSnapshot"
     pub const LightingDataAsset: ClassId = ClassId(1120);
-    pub const GISRaster: ClassId = ClassId(1121);
-    pub const GISRasterImporter: ClassId = ClassId(1122);
-    pub const CadImporter: ClassId = ClassId(1123);
     pub const SketchUpImporter: ClassId = ClassId(1124);
     pub const BuildReport: ClassId = ClassId(1125);
     pub const PackedAssets: ClassId = ClassId(1126);
+    // Renamed from: "BuiltAssetBundleInfoSet"
     pub const VideoClipImporter: ClassId = ClassId(1127);
-    pub const ActivationLogComponent: ClassId = ClassId(2000);
+    pub const StyleSheetImporter: ClassId = ClassId(1128);
     pub const int: ClassId = ClassId(100000);
     pub const bool: ClassId = ClassId(100001);
     pub const float: ClassId = ClassId(100002);
@@ -313,22 +334,32 @@ impl ClassId {
     pub const Polygon2D: ClassId = ClassId(100010);
     pub const void: ClassId = ClassId(100011);
     pub const TilemapCollider2D: ClassId = ClassId(19719996);
-    pub const AssetImporterLog: ClassId = ClassId(41386430);
+    // Renamed from: "AssetImporterLog"
+    pub const ImportLog: ClassId = ClassId(41386430);
+    pub const GraphicsStateCollection: ClassId = ClassId(55640938);
     pub const VFXRenderer: ClassId = ClassId(73398921);
     pub const SerializableManagedRefTestClass: ClassId = ClassId(76251197);
     pub const Grid: ClassId = ClassId(156049354);
     pub const ScenesUsingAssets: ClassId = ClassId(156483287);
     pub const ArticulationBody: ClassId = ClassId(171741748);
+    pub const PhysicsCoreProjectSettings2D: ClassId = ClassId(176606843);
     pub const Preset: ClassId = ClassId(181963792);
+    pub const ShaderIncludeReflection: ClassId = ClassId(209234237);
     pub const EmptyObject: ClassId = ClassId(277625683);
     pub const IConstraint: ClassId = ClassId(285090594);
     pub const TestObjectWithSpecialLayoutOne: ClassId = ClassId(293259124);
     pub const AssemblyDefinitionReferenceImporter: ClassId = ClassId(294290339);
+    pub const ContentSummary: ClassId = ClassId(330615474);
     pub const SiblingDerived: ClassId = ClassId(334799969);
     pub const TestObjectWithSerializedMapStringNonAlignedStruct: ClassId = ClassId(342846651);
+    pub const AudioResource: ClassId = ClassId(355983997);
     pub const SubDerived: ClassId = ClassId(367388927);
     pub const AssetImportInProgressProxy: ClassId = ClassId(369655926);
     pub const PluginBuildInfo: ClassId = ClassId(382020655);
+    pub const UIAnimationBinder: ClassId = ClassId(382093023);
+    pub const MemorySettings: ClassId = ClassId(387306366);
+    pub const BuildMetaDataImporter: ClassId = ClassId(403037116);
+    pub const BuildInstructionImporter: ClassId = ClassId(403037117);
     pub const EditorProjectAccess: ClassId = ClassId(426301858);
     pub const PrefabImporter: ClassId = ClassId(468431735);
     pub const TestObjectWithSerializedArray: ClassId = ClassId(478637458);
@@ -340,40 +371,70 @@ impl ClassId {
     pub const AudioBuildInfo: ClassId = ClassId(641289076);
     pub const CachedSpriteAtlasRuntimeData: ClassId = ClassId(644342135);
     pub const RendererFake: ClassId = ClassId(646504946);
+    pub const MultiplayerManager: ClassId = ClassId(655991488);
     pub const AssemblyDefinitionReferenceAsset: ClassId = ClassId(662584278);
     pub const BuiltAssetBundleInfoSet: ClassId = ClassId(668709126);
     pub const SpriteAtlas: ClassId = ClassId(687078895);
+    pub const BlobObject: ClassId = ClassId(687930938);
+    pub const DifferentMarshallingTestObject: ClassId = ClassId(702665669);
     pub const RayTracingShaderImporter: ClassId = ClassId(747330370);
+    pub const BuildArchiveImporter: ClassId = ClassId(780535461);
+    pub const PreviewImporter: ClassId = ClassId(815301076);
     pub const RayTracingShader: ClassId = ClassId(825902497);
     pub const LightingSettings: ClassId = ClassId(850595691);
     pub const PlatformModuleSetup: ClassId = ClassId(877146078);
     pub const VersionControlSettings: ClassId = ClassId(890905787);
+    pub const CustomCollider2D: ClassId = ClassId(893571522);
     pub const AimConstraint: ClassId = ClassId(895512359);
     pub const VFXManager: ClassId = ClassId(937362698);
+    pub const RoslynAnalyzerConfigAsset: ClassId = ClassId(947337230);
+    pub const RuleSetFileAsset: ClassId = ClassId(954905827);
     pub const VisualEffectSubgraph: ClassId = ClassId(994735392);
     pub const VisualEffectSubgraphOperator: ClassId = ClassId(994735403);
     pub const VisualEffectSubgraphBlock: ClassId = ClassId(994735404);
+    pub const Prefab: ClassId = ClassId(1001480554);
     pub const LocalizationImporter: ClassId = ClassId(1027052791);
     pub const Derived: ClassId = ClassId(1091556383);
+    pub const BlockShaderSyntaxTree: ClassId = ClassId(1096314112);
+    pub const BlockShaderContainer: ClassId = ClassId(1096314113);
+    pub const BlockShaderErrors: ClassId = ClassId(1096314114);
     pub const PropertyModificationsTargetTestObject: ClassId = ClassId(1111377672);
     pub const ReferencesArtifactGenerator: ClassId = ClassId(1114811875);
+    pub const RenderAs2D: ClassId = ClassId(1120581460);
+    pub const BlockShaderSourceArtifact: ClassId = ClassId(1149764431);
+    // Renamed from: "AssemblyJsonAsset"
     pub const AssemblyDefinitionAsset: ClassId = ClassId(1152215463);
     pub const SceneVisibilityState: ClassId = ClassId(1154873562);
     pub const LookAtConstraint: ClassId = ClassId(1183024399);
     pub const SpriteAtlasImporter: ClassId = ClassId(1210832254);
     pub const MultiArtifactTestImporter: ClassId = ClassId(1223240404);
+    pub const AudioContainerElement: ClassId = ClassId(1233149941);
     pub const GameObjectRecorder: ClassId = ClassId(1268269756);
+    pub const AudioRandomContainer: ClassId = ClassId(1307931743);
     pub const LightingDataAssetParent: ClassId = ClassId(1325145578);
     pub const PresetManager: ClassId = ClassId(1386491679);
     pub const TestObjectWithSpecialLayoutTwo: ClassId = ClassId(1392443030);
     pub const StreamingManager: ClassId = ClassId(1403656975);
     pub const LowerResBlitTexture: ClassId = ClassId(1480428607);
+    pub const VideoBuildInfo: ClassId = ClassId(1521398425);
+    pub const C4DImporter: ClassId = ClassId(1541671625);
     pub const StreamingController: ClassId = ClassId(1542919678);
+    pub const ShaderContainer: ClassId = ClassId(1557264870);
     pub const RenderPassAttachment: ClassId = ClassId(1571458007);
+    pub const RoslynAdditionalFileAsset: ClassId = ClassId(1597193336);
     pub const TestObjectVectorPairStringBool: ClassId = ClassId(1628831178);
+    pub const RoslynAdditionalFileImporter: ClassId = ClassId(1642787288);
+    pub const MultiplayerRolesData: ClassId = ClassId(1652712579);
+    pub const SceneRoots: ClassId = ClassId(1660057539);
+    pub const BrokenPrefabAsset: ClassId = ClassId(1731078267);
+    pub const AndroidAssetPackImporter: ClassId = ClassId(1736697216);
+    pub const VulkanDeviceFilterLists: ClassId = ClassId(1740304944);
     pub const GridLayout: ClassId = ClassId(1742807556);
+    // Renamed from: "AssemblyJsonImporter"
     pub const AssemblyDefinitionImporter: ClassId = ClassId(1766753193);
     pub const ParentConstraint: ClassId = ClassId(1773428102);
+    pub const RuleSetFileImporter: ClassId = ClassId(1777034230);
+    pub const D3D12DeviceFilterLists: ClassId = ClassId(1798438448);
     pub const FakeComponent: ClassId = ClassId(1803986026);
     pub const PositionConstraint: ClassId = ClassId(1818360608);
     pub const RotationConstraint: ClassId = ClassId(1818360609);
@@ -381,6 +442,9 @@ impl ClassId {
     pub const Tilemap: ClassId = ClassId(1839735485);
     pub const PackageManifest: ClassId = ClassId(1896753125);
     pub const PackageManifestImporter: ClassId = ClassId(1896753126);
+    pub const RoslynAnalyzerConfigImporter: ClassId = ClassId(1903396204);
+    pub const UIRenderer: ClassId = ClassId(1931382933);
+    pub const PanelRenderer: ClassId = ClassId(1931382934);
     pub const TerrainLayer: ClassId = ClassId(1953259897);
     pub const SpriteShapeRenderer: ClassId = ClassId(1971053207);
     pub const NativeObjectType: ClassId = ClassId(1977754360);
@@ -393,6 +457,9 @@ impl ClassId {
     pub const VisualEffect: ClassId = ClassId(2083052967);
     pub const LocalizationAsset: ClassId = ClassId(2083778819);
     pub const ScriptedImporter: ClassId = ClassId(2089858483);
+    pub const BlockShaderImporter: ClassId = ClassId(2097406814);
+    pub const ShaderIncludeImporter: ClassId = ClassId(2103361453);
+    pub const TilemapEditorUserSettings: ClassId = ClassId(2126867596);
 }
 
 use std::sync::LazyLock;
@@ -432,7 +499,7 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::Shader, "Shader"),
     (ClassId::TextAsset, "TextAsset"),
     (ClassId::Rigidbody2D, "Rigidbody2D"),
-    (ClassId::Physics2DManager, "Physics2DManager"),
+    (ClassId::NotificationManager, "NotificationManager"),
     (ClassId::Collider2D, "Collider2D"),
     (ClassId::Rigidbody, "Rigidbody"),
     (ClassId::PhysicsManager, "PhysicsManager"),
@@ -447,7 +514,9 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::BoxCollider, "BoxCollider"),
     (ClassId::CompositeCollider2D, "CompositeCollider2D"),
     (ClassId::EdgeCollider2D, "EdgeCollider2D"),
+    (ClassId::PolygonColliderBase2D, "PolygonColliderBase2D"),
     (ClassId::CapsuleCollider2D, "CapsuleCollider2D"),
+    (ClassId::AnimationManager, "AnimationManager"),
     (ClassId::ComputeShader, "ComputeShader"),
     (ClassId::AnimationClip, "AnimationClip"),
     (ClassId::ConstantForce, "ConstantForce"),
@@ -465,14 +534,14 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::AnimatorController, "AnimatorController"),
     (ClassId::GUILayer, "GUILayer"),
     (ClassId::RuntimeAnimatorController, "RuntimeAnimatorController"),
-    (ClassId::ScriptMapper, "ScriptMapper"),
+    (ClassId::ShaderNameRegistry, "ShaderNameRegistry"),
     (ClassId::Animator, "Animator"),
     (ClassId::TrailRenderer, "TrailRenderer"),
     (ClassId::DelayedCallManager, "DelayedCallManager"),
     (ClassId::TextMesh, "TextMesh"),
     (ClassId::RenderSettings, "RenderSettings"),
     (ClassId::Light, "Light"),
-    (ClassId::CGProgram, "CGProgram"),
+    (ClassId::ShaderInclude, "ShaderInclude"),
     (ClassId::BaseAnimationTrack, "BaseAnimationTrack"),
     (ClassId::Animation, "Animation"),
     (ClassId::MonoBehaviour, "MonoBehaviour"),
@@ -495,7 +564,7 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::GUITexture, "GUITexture"),
     (ClassId::GUIText, "GUIText"),
     (ClassId::GUIElement, "GUIElement"),
-    (ClassId::PhysicMaterial, "PhysicMaterial"),
+    (ClassId::PhysicsMaterial, "PhysicsMaterial"),
     (ClassId::SphereCollider, "SphereCollider"),
     (ClassId::CapsuleCollider, "CapsuleCollider"),
     (ClassId::SkinnedMeshRenderer, "SkinnedMeshRenderer"),
@@ -546,7 +615,6 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::NavMeshObsolete, "NavMeshObsolete"),
     (ClassId::NavMeshAgent, "NavMeshAgent"),
     (ClassId::NavMeshSettings, "NavMeshSettings"),
-    (ClassId::LightProbesLegacy, "LightProbesLegacy"),
     (ClassId::ParticleSystem, "ParticleSystem"),
     (ClassId::ParticleSystemRenderer, "ParticleSystemRenderer"),
     (ClassId::ShaderVariantCollection, "ShaderVariantCollection"),
@@ -559,7 +627,6 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::Sprite, "Sprite"),
     (ClassId::CachedSpriteAtlas, "CachedSpriteAtlas"),
     (ClassId::ReflectionProbe, "ReflectionProbe"),
-    (ClassId::ReflectionProbes, "ReflectionProbes"),
     (ClassId::Terrain, "Terrain"),
     (ClassId::LightProbeGroup, "LightProbeGroup"),
     (ClassId::AnimatorOverrideController, "AnimatorOverrideController"),
@@ -607,6 +674,7 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::UnityAdsManager, "UnityAdsManager"),
     (ClassId::RuntimeInitializeOnLoadManager, "RuntimeInitializeOnLoadManager"),
     (ClassId::CloudWebServicesManager, "CloudWebServicesManager"),
+    (ClassId::CloudServiceHandlerBehaviour, "CloudServiceHandlerBehaviour"),
     (ClassId::UnityAnalyticsManager, "UnityAnalyticsManager"),
     (ClassId::CrashReportManager, "CrashReportManager"),
     (ClassId::PerformanceReportingManager, "PerformanceReportingManager"),
@@ -619,7 +687,7 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::SpriteMask, "SpriteMask"),
     (ClassId::WorldAnchor, "WorldAnchor"),
     (ClassId::OcclusionCullingData, "OcclusionCullingData"),
-    (ClassId::SmallestEditorClassId, "SmallestEditorClassId"),
+    (ClassId::MarshallingTestObject, "MarshallingTestObject"),
     (ClassId::PrefabInstance, "PrefabInstance"),
     (ClassId::EditorExtensionImpl, "EditorExtensionImpl"),
     (ClassId::AssetImporter, "AssetImporter"),
@@ -628,6 +696,7 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::TextureImporter, "TextureImporter"),
     (ClassId::ShaderImporter, "ShaderImporter"),
     (ClassId::ComputeShaderImporter, "ComputeShaderImporter"),
+    (ClassId::AvatarSkeletonMask, "AvatarSkeletonMask"),
     (ClassId::AudioImporter, "AudioImporter"),
     (ClassId::HierarchyState, "HierarchyState"),
     (ClassId::GUIDSerializer, "GUIDSerializer"),
@@ -665,14 +734,11 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::SubstanceImporter, "SubstanceImporter"),
     (ClassId::LightmapParameters, "LightmapParameters"),
     (ClassId::LightingDataAsset, "LightingDataAsset"),
-    (ClassId::GISRaster, "GISRaster"),
-    (ClassId::GISRasterImporter, "GISRasterImporter"),
-    (ClassId::CadImporter, "CadImporter"),
     (ClassId::SketchUpImporter, "SketchUpImporter"),
     (ClassId::BuildReport, "BuildReport"),
     (ClassId::PackedAssets, "PackedAssets"),
     (ClassId::VideoClipImporter, "VideoClipImporter"),
-    (ClassId::ActivationLogComponent, "ActivationLogComponent"),
+    (ClassId::StyleSheetImporter, "StyleSheetImporter"),
     (ClassId::int, "int"),
     (ClassId::bool, "bool"),
     (ClassId::float, "float"),
@@ -686,22 +752,31 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::Polygon2D, "Polygon2D"),
     (ClassId::void, "void"),
     (ClassId::TilemapCollider2D, "TilemapCollider2D"),
-    (ClassId::AssetImporterLog, "AssetImporterLog"),
+    (ClassId::ImportLog, "ImportLog"),
+    (ClassId::GraphicsStateCollection, "GraphicsStateCollection"),
     (ClassId::VFXRenderer, "VFXRenderer"),
     (ClassId::SerializableManagedRefTestClass, "SerializableManagedRefTestClass"),
     (ClassId::Grid, "Grid"),
     (ClassId::ScenesUsingAssets, "ScenesUsingAssets"),
     (ClassId::ArticulationBody, "ArticulationBody"),
+    (ClassId::PhysicsCoreProjectSettings2D, "PhysicsCoreProjectSettings2D"),
     (ClassId::Preset, "Preset"),
+    (ClassId::ShaderIncludeReflection, "ShaderIncludeReflection"),
     (ClassId::EmptyObject, "EmptyObject"),
     (ClassId::IConstraint, "IConstraint"),
     (ClassId::TestObjectWithSpecialLayoutOne, "TestObjectWithSpecialLayoutOne"),
     (ClassId::AssemblyDefinitionReferenceImporter, "AssemblyDefinitionReferenceImporter"),
+    (ClassId::ContentSummary, "ContentSummary"),
     (ClassId::SiblingDerived, "SiblingDerived"),
     (ClassId::TestObjectWithSerializedMapStringNonAlignedStruct, "TestObjectWithSerializedMapStringNonAlignedStruct"),
+    (ClassId::AudioResource, "AudioResource"),
     (ClassId::SubDerived, "SubDerived"),
     (ClassId::AssetImportInProgressProxy, "AssetImportInProgressProxy"),
     (ClassId::PluginBuildInfo, "PluginBuildInfo"),
+    (ClassId::UIAnimationBinder, "UIAnimationBinder"),
+    (ClassId::MemorySettings, "MemorySettings"),
+    (ClassId::BuildMetaDataImporter, "BuildMetaDataImporter"),
+    (ClassId::BuildInstructionImporter, "BuildInstructionImporter"),
     (ClassId::EditorProjectAccess, "EditorProjectAccess"),
     (ClassId::PrefabImporter, "PrefabImporter"),
     (ClassId::TestObjectWithSerializedArray, "TestObjectWithSerializedArray"),
@@ -713,40 +788,68 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::AudioBuildInfo, "AudioBuildInfo"),
     (ClassId::CachedSpriteAtlasRuntimeData, "CachedSpriteAtlasRuntimeData"),
     (ClassId::RendererFake, "RendererFake"),
+    (ClassId::MultiplayerManager, "MultiplayerManager"),
     (ClassId::AssemblyDefinitionReferenceAsset, "AssemblyDefinitionReferenceAsset"),
     (ClassId::BuiltAssetBundleInfoSet, "BuiltAssetBundleInfoSet"),
     (ClassId::SpriteAtlas, "SpriteAtlas"),
+    (ClassId::BlobObject, "BlobObject"),
+    (ClassId::DifferentMarshallingTestObject, "DifferentMarshallingTestObject"),
     (ClassId::RayTracingShaderImporter, "RayTracingShaderImporter"),
+    (ClassId::BuildArchiveImporter, "BuildArchiveImporter"),
+    (ClassId::PreviewImporter, "PreviewImporter"),
     (ClassId::RayTracingShader, "RayTracingShader"),
     (ClassId::LightingSettings, "LightingSettings"),
     (ClassId::PlatformModuleSetup, "PlatformModuleSetup"),
     (ClassId::VersionControlSettings, "VersionControlSettings"),
+    (ClassId::CustomCollider2D, "CustomCollider2D"),
     (ClassId::AimConstraint, "AimConstraint"),
     (ClassId::VFXManager, "VFXManager"),
+    (ClassId::RoslynAnalyzerConfigAsset, "RoslynAnalyzerConfigAsset"),
+    (ClassId::RuleSetFileAsset, "RuleSetFileAsset"),
     (ClassId::VisualEffectSubgraph, "VisualEffectSubgraph"),
     (ClassId::VisualEffectSubgraphOperator, "VisualEffectSubgraphOperator"),
     (ClassId::VisualEffectSubgraphBlock, "VisualEffectSubgraphBlock"),
+    (ClassId::Prefab, "Prefab"),
     (ClassId::LocalizationImporter, "LocalizationImporter"),
     (ClassId::Derived, "Derived"),
+    (ClassId::BlockShaderSyntaxTree, "BlockShaderSyntaxTree"),
+    (ClassId::BlockShaderContainer, "BlockShaderContainer"),
+    (ClassId::BlockShaderErrors, "BlockShaderErrors"),
     (ClassId::PropertyModificationsTargetTestObject, "PropertyModificationsTargetTestObject"),
     (ClassId::ReferencesArtifactGenerator, "ReferencesArtifactGenerator"),
+    (ClassId::RenderAs2D, "RenderAs2D"),
+    (ClassId::BlockShaderSourceArtifact, "BlockShaderSourceArtifact"),
     (ClassId::AssemblyDefinitionAsset, "AssemblyDefinitionAsset"),
     (ClassId::SceneVisibilityState, "SceneVisibilityState"),
     (ClassId::LookAtConstraint, "LookAtConstraint"),
     (ClassId::SpriteAtlasImporter, "SpriteAtlasImporter"),
     (ClassId::MultiArtifactTestImporter, "MultiArtifactTestImporter"),
+    (ClassId::AudioContainerElement, "AudioContainerElement"),
     (ClassId::GameObjectRecorder, "GameObjectRecorder"),
+    (ClassId::AudioRandomContainer, "AudioRandomContainer"),
     (ClassId::LightingDataAssetParent, "LightingDataAssetParent"),
     (ClassId::PresetManager, "PresetManager"),
     (ClassId::TestObjectWithSpecialLayoutTwo, "TestObjectWithSpecialLayoutTwo"),
     (ClassId::StreamingManager, "StreamingManager"),
     (ClassId::LowerResBlitTexture, "LowerResBlitTexture"),
+    (ClassId::VideoBuildInfo, "VideoBuildInfo"),
+    (ClassId::C4DImporter, "C4DImporter"),
     (ClassId::StreamingController, "StreamingController"),
+    (ClassId::ShaderContainer, "ShaderContainer"),
     (ClassId::RenderPassAttachment, "RenderPassAttachment"),
+    (ClassId::RoslynAdditionalFileAsset, "RoslynAdditionalFileAsset"),
     (ClassId::TestObjectVectorPairStringBool, "TestObjectVectorPairStringBool"),
+    (ClassId::RoslynAdditionalFileImporter, "RoslynAdditionalFileImporter"),
+    (ClassId::MultiplayerRolesData, "MultiplayerRolesData"),
+    (ClassId::SceneRoots, "SceneRoots"),
+    (ClassId::BrokenPrefabAsset, "BrokenPrefabAsset"),
+    (ClassId::AndroidAssetPackImporter, "AndroidAssetPackImporter"),
+    (ClassId::VulkanDeviceFilterLists, "VulkanDeviceFilterLists"),
     (ClassId::GridLayout, "GridLayout"),
     (ClassId::AssemblyDefinitionImporter, "AssemblyDefinitionImporter"),
     (ClassId::ParentConstraint, "ParentConstraint"),
+    (ClassId::RuleSetFileImporter, "RuleSetFileImporter"),
+    (ClassId::D3D12DeviceFilterLists, "D3D12DeviceFilterLists"),
     (ClassId::FakeComponent, "FakeComponent"),
     (ClassId::PositionConstraint, "PositionConstraint"),
     (ClassId::RotationConstraint, "RotationConstraint"),
@@ -754,6 +857,9 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::Tilemap, "Tilemap"),
     (ClassId::PackageManifest, "PackageManifest"),
     (ClassId::PackageManifestImporter, "PackageManifestImporter"),
+    (ClassId::RoslynAnalyzerConfigImporter, "RoslynAnalyzerConfigImporter"),
+    (ClassId::UIRenderer, "UIRenderer"),
+    (ClassId::PanelRenderer, "PanelRenderer"),
     (ClassId::TerrainLayer, "TerrainLayer"),
     (ClassId::SpriteShapeRenderer, "SpriteShapeRenderer"),
     (ClassId::NativeObjectType, "NativeObjectType"),
@@ -765,7 +871,10 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::VisualEffectObject, "VisualEffectObject"),
     (ClassId::VisualEffect, "VisualEffect"),
     (ClassId::LocalizationAsset, "LocalizationAsset"),
-    (ClassId::ScriptedImporter, "ScriptedImporter")
+    (ClassId::ScriptedImporter, "ScriptedImporter"),
+    (ClassId::BlockShaderImporter, "BlockShaderImporter"),
+    (ClassId::ShaderIncludeImporter, "ShaderIncludeImporter"),
+    (ClassId::TilemapEditorUserSettings, "TilemapEditorUserSettings")
 ]
     .iter()
     .copied()
