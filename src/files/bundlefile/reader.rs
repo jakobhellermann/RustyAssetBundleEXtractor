@@ -78,7 +78,14 @@ impl<R: Read + Seek> BundleFileReader<R> {
     }
 
     pub fn serialized_files(&self) -> impl Iterator<Item = &FileEntry> {
-        self.files.iter().filter(|file| (file.flags & 4) != 0)
+        self.files
+            .iter()
+            .filter(|file| (file.flags & FileEntry::FLAG_SERIALIZEDFILE) != 0)
+    }
+
+    pub fn main_serializedfile(&self) -> Option<&FileEntry> {
+        self.serialized_files()
+            .find(|file| !file.path.ends_with(".sharedAssets"))
     }
 
     pub fn blocks(&self) -> &[StorageBlock] {

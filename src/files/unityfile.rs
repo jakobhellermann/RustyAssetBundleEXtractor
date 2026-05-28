@@ -20,6 +20,7 @@ pub struct FileEntry {
     pub path: String,
 }
 impl FileEntry {
+    pub const FLAG_SERIALIZEDFILE: u32 = 4;
     pub fn end(&self) -> i64 {
         self.offset + self.size
     }
