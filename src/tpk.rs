@@ -499,28 +499,27 @@ impl TpkTypeTreeBlob {
         stack.push_back((root, 0));
 
         // adapted from https://github.com/K0lb3/UnityPy/blob/62bf31064bb36659661f024a770f6e55f3fbd3d3/UnityPy/helpers/Tpk.py#L55
-        let mut index = 0;
         while let Some((node_id, level)) = stack.pop_front() {
             let node = &self.node_buffer[node_id as usize];
             let type_name = &self.string_buffer[node.type_name as usize];
             let name = &self.string_buffer[node.name as usize];
-            nodes.push(TypeTreeNode {
-                m_Version: node.version as i32,
-                m_Level: level,
-                m_TypeFlags: node.type_flags as i32,
-                m_ByteSize: node.byte_size,
-                m_Index: Some(index),
-                m_MetaFlag: Some(node.meta_flag as i32),
-                m_Type: type_name.clone(),
-                m_Name: name.clone(),
-                m_RefTypeHash: None,
-                m_VariableCount: None,
-                children: Vec::new(),
-            });
+            nodes.push((
+                level,
+                TypeTreeNode {
+                    m_Version: node.version as i32,
+                    m_TypeFlags: node.type_flags as i32,
+                    m_ByteSize: node.byte_size,
+                    m_MetaFlag: Some(node.meta_flag as i32),
+                    m_Type: type_name.clone(),
+                    m_Name: name.clone(),
+                    m_RefTypeHash: None,
+                    m_VariableCount: None,
+                    children: Vec::new(),
+                },
+            ));
             for &sub_node_id in node.sub_nodes.iter().rev() {
                 stack.push_front((sub_node_id, level + 1));
             }
-            index += 1;
         }
 
         Some(reconstruct_tree(nodes))
@@ -569,7 +568,7 @@ fn read_7bit_encoded_string<R: Read>(reader: &mut R) -> Result<String> {
 ///   level=1 idx=3
 /// level=0 idx=3
 /// level=0 idx=4
-fn reconstruct_tree(mut flat_nodes: Vec<TypeTreeNode>) -> TypeTreeNode {
+fn reconstruct_tree(mut flat_nodes: Vec<(u8, TypeTreeNode)>) -> TypeTreeNode {
     fn access(mut node: &mut TypeTreeNode, mut depth: usize) -> &mut TypeTreeNode {
         while depth > 0 {
             node = node.children.last_mut().unwrap();
@@ -578,10 +577,10 @@ fn reconstruct_tree(mut flat_nodes: Vec<TypeTreeNode>) -> TypeTreeNode {
         node
     }
 
-    let mut root = flat_nodes.remove(0);
+    let (_, mut root) = flat_nodes.remove(0);
 
-    for flat_node in flat_nodes {
-        access(&mut root, flat_node.m_Level as usize - 1)
+    for (level, flat_node) in flat_nodes {
+        access(&mut root, level as usize - 1)
             .children
             .push(flat_node);
     }
