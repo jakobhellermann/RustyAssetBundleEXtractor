@@ -1,9 +1,4 @@
 /__pycache__
 /.vscode
 /dev
-/script_reference_cache
 /TypeTreeDumps
-/uv.lock
-
-metadata.json
-classes.rs
