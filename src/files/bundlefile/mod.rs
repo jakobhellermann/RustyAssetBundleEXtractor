@@ -13,7 +13,7 @@ pub use config::{ExtractionConfig, FallbackUnityVersion};
 pub use reader::BundleFileReader;
 
 use crate::archive_storage_manager::ArchiveStorageDecryptor;
-use crate::files::unityfile::{FileEntry, UnityFile};
+use crate::files::unityfile::FileEntry;
 use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
 use crate::unity_version::UnityVersion;
 use crate::write_ext::{WriteExt, WriteSeekExt};
@@ -764,15 +764,6 @@ fn decompress_block<R: Read + Seek, W: Write>(
             std::io::copy(&mut reader.take(block.compressed_size as u64), writer)?;
             Ok(())
         }
-    }
-}
-
-impl UnityFile for BundleFile {
-    fn from_reader<T: Read + Seek>(reader: &mut T, config: &ExtractionConfig) -> Result<Self, Error>
-    where
-        Self: Sized,
-    {
-        BundleFile::from_reader(reader, config)
     }
 }
 

@@ -73,8 +73,6 @@ use std::marker::PhantomData;
 use std::path::{Path, PathBuf};
 use std::str::Utf8Error;
 
-use super::UnityFile;
-use super::bundlefile::ExtractionConfig;
 use crate::objects::pptr::{FileId, PathId};
 use crate::objects::{ClassId, ClassIdType, PPtr};
 use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
@@ -1061,18 +1059,6 @@ impl std::error::Error for Error {}
 impl From<std::io::Error> for Error {
     fn from(error: std::io::Error) -> Self {
         Error::IO(error)
-    }
-}
-
-impl UnityFile for SerializedFile {
-    fn from_reader<T: std::io::Read + std::io::Seek>(
-        reader: &mut T,
-        _: &ExtractionConfig,
-    ) -> Result<Self, std::io::Error>
-    where
-        Self: Sized,
-    {
-        SerializedFile::from_reader(reader)
     }
 }
 

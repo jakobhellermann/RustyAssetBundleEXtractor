@@ -1,17 +1,3 @@
-use crate::files::bundlefile::ExtractionConfig;
-use std::io::{Error, Read, Seek};
-
-pub trait UnityFile {
-    fn from_reader<T: Read + Seek>(
-        reader: &mut T,
-        config: &ExtractionConfig,
-    ) -> Result<Self, Error>
-    where
-        Self: Sized;
-    // fn get_objects(&self) -> &Vec<Object>;
-    // fn to_writer(&self, writer: &mut impl Write+Seek) -> Result<(), Error>;
-}
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FileEntry {
     pub offset: i64,
