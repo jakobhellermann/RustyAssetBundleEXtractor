@@ -1,8 +1,8 @@
-# RustyAssetBundleEXtractor (rabex) [![Build Status]][actions] [![Latest Version]][crates.io] [![Docs]][docs.rs] [![License_MIT]][license_mit] [![License_APACHE]][license_apache] 
+# RustyAssetBundleEXtractor (rabex)
 
-[Build Status]: https://img.shields.io/github/actions/workflow/status/UniversalGameExtraction/RustyAssetBundleEXtractor/ci.yml?branch=main
-[actions]: https://github.com/UniversalGameExtraction/RustyAssetBundleEXtractor/actions?query=branch%3Amain
-[Latest Version]: https://img.shields.io/crates/v/RustyAssetBundleEXtractor.svg
+[![Latest Version]][crates.io] [![Docs]][docs.rs] [![License_MIT]][license_mit] [![License_APACHE]][license_apache] 
+
+[Latest Version]: https://img.shields.io/crates/v/rabex.svg
 [crates.io]: https://crates.io/crates/rabex
 [Docs]: https://docs.rs/rabex/badge.svg
 [docs.rs]: https://docs.rs/crate/rabex/
@@ -11,179 +11,94 @@
 [License_APACHE]: https://img.shields.io/badge/License-Apache%202.0-blue.svg
 [license_apache]: https://raw.githubusercontent.com/UniversalGameExtraction/RustyAssetBundleEXtractor/main/LICENSE-APACHE
 
-
-A work-in-progress extractor and patcher for Unity Engine asset files.
-Currently it can do about nothing, so please check back later.
-
-## Dependencies
-
-This projects uses following dependencies:
-
-- Compression & Decompression:
-
-  - BundleFiles blocks:
-    - [lzma-rs](https://crates.io/crates/lzma-rs)
-    - [lz4_flex](lz4_flex)
-  - WebFile:
-    - [libflate](https://crates.io/crates/libflate)
-    - [brotli](https://crates.io/crates/brotli)
-
-- Other:
-  - [bitflags](https://crates.io/crates/bitflags)
-  - [num_enum](https://crates.io/crates/num_enum)
+A crate for working with Unity Engine asset files. It supports reading and writing bundle files and serialized files, as well as reading typetrees with serde integration.
 
 ## Examples
 
-### parsing a normal BundleFile and dumping its objects
+**Parsing an AssetBundle and dumping its objects**
 
 ```rust
-use std::{
-    fs::{DirBuilder, File},
-    io::{Seek, Write},
-    path::Path,
-};
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{BufReader, Cursor};
+use std::path::Path;
 
-use rabex::files::{BundleFile, SerializedFile};
-use rabex::config::ExtractionConfig;
+use anyhow::Result;
+use rabex::files::SerializedFile;
+use rabex::files::bundlefile::{BundleFileReader, ExtractionConfig};
+use rabex::objects::{ClassId, PPtr};
+use rabex::tpk::TpkTypeTreeBlob;
+use rabex::typetree::typetree_cache::sync::TypeTreeCache;
+use serde_derive::Deserialize;
 
-let mut reader = File::open(fp).unwrap();
-let export_dir = Path::new("dump");
+fn main() -> Result<()> {
+    let tpk = TypeTreeCache::new(TpkTypeTreeBlob::embedded());
 
-// parse the bundle file
-let config = ExtractionConfig::new();
-let mut bundle = BundleFile::from_reader(&mut reader, &config).unwrap();
+    let path = std::env::args()
+        .nth(1)
+        .ok_or_else(|| anyhow::anyhow!("Expected path to unity bundle argument"))?;
+    let config = ExtractionConfig::default().assume_recent_unity();
 
-// iterate over the files in the bundle
-for directory in &bundle.m_DirectoryInfo {
-    // generate export dir for cab
-    let export_cab_dir = export_dir.join(&directory.path);
-    // seek to the start of the file in the bundle
-    bundle
-        .m_BlockReader
-        .seek(std::io::SeekFrom::Start(directory.offset as u64))
-        .unwrap();
+    let mut reader = BufReader::new(File::open(path)?);
+    let mut bundle = BundleFileReader::from_reader(&mut reader, &config)?;
 
-    // try to parse the file as a SerializedFile
-    match SerializedFile::from_reader(&mut bundle.m_BlockReader, &config) {
-        Ok(serialized) => {
-            // iterate over objects
-            for object in &serialized.m_Objects {
-                // get a helper object to parse the object
-                let mut handler =
-                    serialized.get_object_handler(object, &mut bundle.m_BlockReader);
+    let export_dir = Path::new("out");
+    std::fs::create_dir_all(&export_dir)?;
 
-                // try to get the name
-                let name = match handler.peak_name() {
-                    Ok(name) => format!("{}_{}", object.m_PathID, name),
-                    Err(_) => format!("{}", object.m_PathID),
-                };
+    while let Some(mut file) = bundle.next_serialized() {
+        let data = file.read()?;
+        let reader = &mut Cursor::new(data);
 
-                // ensure that the parent directory exists
-                let dst_path = export_cab_dir.join(name);
-                DirBuilder::new()
-                    .recursive(true)
-                    .create(dst_path.parent().unwrap())
-                    .unwrap_or_else(|_| panic!("Failed to create {:?}", dst_path.parent()));
+        let serialized = SerializedFile::from_reader(reader)?;
 
-                // parse the object as json
-                let json = handler.parse_as_json().unwrap();
-                // println!("{:?}", json);
-                File::create(format!("{}.json", dst_path.to_string_lossy()))
-                    .unwrap()
-                    .write_all(json.to_string().as_bytes())
-                    .unwrap();
+        println!(
+            "Contains typetree information: {}",
+            serialized.m_EnableTypeTree
+        );
 
-                // parse the object as yaml
-                let yaml = handler.parse_as_yaml().unwrap().unwrap();
-                // println!("{:?}", yaml);
-                File::create(format!("{}.yaml", dst_path.to_string_lossy()))
-                    .unwrap()
-                    .write_all(serde_yaml::to_string(&yaml).unwrap().as_bytes())
-                    .unwrap();
+        for object in serialized.objects() {
+            println!("{:?} at {}", object.m_ClassID, object.m_PathID);
 
-                // parse the object as msgpack
-                let msgpack = handler.parse_as_msgpack().unwrap();
-                File::create(format!("{}.msgpack", dst_path.to_string_lossy()))
-                    .unwrap()
-                    .write_all(&msgpack)
-                    .unwrap();
+            let data = serialized.read::<serde_json::Value>(object, &tpk, reader)?;
+            let name = data["m_Name"].as_str().unwrap();
 
-                // serialize as actual class
-                // note: a small part of the object classes isn't implemented yet
-                if object.m_ClassID == rabex::objects::map::AssetBundle {
-                    let ab = handler
-                        .parse::<rabex::objects::classes::AssetBundle>()
-                        .unwrap();
-                    println!("{:?}", ab);
-                }
+            let object_path = export_dir.join(name);
+
+            std::fs::write(object_path, serde_json::to_string_pretty(&data)?)?;
+
+            // Objects can be deserialized into any `serde` type
+            if object.m_ClassID == ClassId::AssetBundle {
+                let asset_bundle = serialized.read::<AssetBundle>(object, &tpk, reader)?;
+                println!("Asset Bundle: {:#?}", asset_bundle);
             }
         }
-        Err(e) => {
-            // TODO - try to filter out resource files
-            println!(
-                "Failed to parse {} as SerializedFile.",
-                &directory.path.to_string()
-            );
-        }
     }
+
+    Ok(())
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[allow(non_snake_case)]
+pub struct AssetBundle {
+    pub m_Name: String,
+    pub m_PreloadTable: Vec<PPtr>,
+    pub m_AssetBundleName: String,
+    pub m_IsStreamedSceneAssetBundle: bool,
+    pub m_SceneHashes: HashMap<String, String>,
+    // ...
 }
 ```
 
-### parsing a by UnityCN encrypted BundleFile and handling stripped Unity version
+**Creating an assetbundle from scratch using `BundleFileBuilder` and `SerializedFileBuilder`**
 
-```rust
-let mut reader = File::open(fp).unwrap();
-let config = ExtractionConfig {
-    unitycn_key: Some("Decryption Key".as_bytes().try_into().unwrap()),
-    fallback_unity_version: "2020.3.0f1".to_owned(),
-};
-let bundle = crate::files::BundleFile::from_reader(&mut reader, &config).unwrap();
-```
+[examples/create_assetbundle.rs](./examples/create_assetbundle.rs)
 
-### reading a UnityCN encrypted BundleFile
-
-## Notes
-
-### TODO
-
-- Parsers:
-
-  - [x] SerializedFile
-  - [x] BundleFile
-  - [ ] WebFile
-
-- Object Classes:
-
-  - [x] Generator
-  - [x] Parser
-  - [ ] Writer
-  - [ ] Export Functions
-
-- Tests:
-
-  - [ ] Normal Tests
-  - [ ] Artificing Test Files
-  - [ ] 100% Coverage
-
-- Other:
-  - [ ] feature config
-
-## Getting Help
-
-TODO:
-
-- [ ] Docs
-- [ ] GitHub Issues and Discussion
-- [ ] Discord server
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md).
+## Related Projects
+- [rabex-env](https://github.com/jakobhellermann/rabex-env): Higher-level wrapper around this crate, with support for resolving `PPtr` dependencies through different files, centered around the `Environment` abstraction.
+- [unity-scene-repacker](https://github.com/jakobhellermann/unity-scene-repacker/): Command line tool for repacking unity scenes and asset bundles into distilled versions suitable for loading certain objects in mods
+- [steam-multiversion-viewer](https://github.com/jakobhellermann/steam-multiversion-viewer): [wip] Visual exploration tool for steam game versions, with support for reading and structurally diffing unity game files.
 
 ## License
 
-RustyAssetBundleEXtractor is primarily distributed under the terms of both the MIT license and the
-Apache License (Version 2.0).
-
-See [LICENSE-APACHE](LICENSE-APACHE), [LICENSE-MIT](LICENSE-MIT), and
-[COPYRIGHT](COPYRIGHT) for details.
+RustyAssetBundleEXtractor is licensed under either of [Apache License, Version 2.0](LICENSE-APACHE.d) or [MIT license](LICENSE-MIT.d)
+at your option.

@@ -26,7 +26,6 @@ fn main() -> Result<()> {
     ];
 
     let common_offset_map = build_common_offset_map(&tpk_raw, &unity_version);
-
     let mut builder = SerializedFileBuilder::new(&unity_version, &tpk, &common_offset_map, false);
 
     let mut container = BTreeMap::default();

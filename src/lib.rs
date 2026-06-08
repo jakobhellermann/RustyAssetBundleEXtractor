@@ -1,8 +1,8 @@
 //! A crate for working with Unity Engine asset files.
-//! It supports reading and writing [bundle files](files::bundlefile) and [serialized files](files::serializedfile),
+//! It supports reading and writing asset [bundle files](files::bundlefile) and [serialized files](files::serializedfile),
 //! as well as reading typetrees with [serde integration](serde_typetree).
 //!
-//! It also contains support for type tree dumps in [tpk].
+//! It also contains support for [AssetRipper/Tpk](https://github.com/AssetRipper/Tpk) type tree dumps in [tpk].
 #![allow(non_snake_case)]
 #![allow(dead_code)]
 mod commonstring;
