@@ -107,6 +107,27 @@ impl<R: Read + Seek> BundleFileReader<R> {
         })
     }
 
+    /// Advance to the next serialized file, skipping non-serialized entries such as `.resS`
+    /// resources. Call [`BundleFileRef::read`] to get the actual data.
+    pub fn next_serialized(&mut self) -> Option<BundleFileRef<'_, R>> {
+        let (index, file) = self
+            .files
+            .iter()
+            .enumerate()
+            .skip((self.file_index + 1) as usize)
+            .find(|(_, file)| (file.flags & FileEntry::FLAG_SERIALIZEDFILE) != 0)
+            .map(|(index, file)| (index, file.clone()))?;
+
+        self.file_index = index as isize;
+        Some(BundleFileRef {
+            iter: self,
+            path: file.path,
+            flags: file.flags,
+            offset: file.offset,
+            size: file.size as usize,
+        })
+    }
+
     /// Go back to the start of the file, so that [`BundleFileReader::next`] will yield the first file.
     pub fn reset(&mut self) -> Result<(), std::io::Error> {
         self.block_index = 0;
