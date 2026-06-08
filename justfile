@@ -16,3 +16,11 @@ update-class-id:
     fi
     python3 utils/class_generator/generate_class_id.py
     cargo fmt -- src/objects/class_id.rs
+
+update-commonstring:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    tmp=$(mktemp)
+    cargo run -q --features embed-tpk --example generate_commonstring > "$tmp"
+    mv "$tmp" src/commonstring.rs
+    cargo fmt -- src/commonstring.rs

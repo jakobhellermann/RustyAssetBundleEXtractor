@@ -166,12 +166,11 @@ impl TypeTreeNode {
             }
             let offset = value & 0x7FFFFFFF;
 
-            let ret = COMMONSTRING.get(&offset);
-
-            if let Some(ret) = ret {
-                Ok(ret.to_string())
-            } else {
-                Ok(offset.to_string())
+            match COMMONSTRING.get(&offset) {
+                Some(ret) => Ok(ret.to_string()),
+                None => Err(invalid_data(format!(
+                    "unknown common string offset {offset}; common string table is incomplete"
+                ))),
             }
         }
 

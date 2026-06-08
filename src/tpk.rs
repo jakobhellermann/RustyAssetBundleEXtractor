@@ -588,3 +588,30 @@ fn reconstruct_tree(mut flat_nodes: Vec<TypeTreeNode>) -> TypeTreeNode {
 
     root
 }
+
+#[cfg(all(test, feature = "embed-tpk"))]
+mod commonstring_tests {
+    use super::TpkTypeTreeBlob;
+    use crate::commonstring::COMMONSTRING;
+    use std::collections::BTreeMap;
+
+    /// `src/commonstring.rs` is generated from the TPK via `just update-commonstring`. This
+    /// guards against it drifting — a hand edit, or a TPK update without regenerating. The
+    /// hardcoded read table must equal the full TPK-derived common string table.
+    #[test]
+    fn commonstring_matches_tpk() {
+        let tpk = TpkTypeTreeBlob::embedded();
+        let mut tpk_map = BTreeMap::new();
+        let mut offset = 0u32;
+        for &i in &tpk.common_string.string_buffer_indices {
+            let s = tpk.string_buffer[i as usize].as_str();
+            tpk_map.insert(offset, s);
+            offset += s.len() as u32 + 1;
+        }
+
+        assert_eq!(COMMONSTRING.len(), tpk_map.len());
+        for (off, s) in COMMONSTRING.iter() {
+            assert_eq!(tpk_map.get(off).copied(), Some(*s), "offset {off}");
+        }
+    }
+}
