@@ -6,8 +6,8 @@ include = [
     "src/*",
     "Cargo.toml",
     "README.md",
-    "LICENSE-APACHE",
-    "LICENSE-MIT",
+    "LICENSE-APACHE.md",
+    "LICENSE-MIT.md",
 ]
 authors = ["Rudolf Kolbe <rkolbe96@gmail.com>", "Jakob Hellermann <jakobhellermann@protonmail.com>"]
 description = "Tools for parsing and writing unity files, bundles and typetrees"
