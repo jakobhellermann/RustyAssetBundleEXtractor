@@ -59,13 +59,23 @@ impl BundleFileBuilder {
         self.header_compression = compression;
     }
 
-    pub fn add_file(&mut self, path: &str, mut file: impl Read) -> Result<(), std::io::Error> {
+    /// Add a file to the bundle, with flags marking it as a serialized file
+    pub fn add_file(&mut self, path: &str, file: impl Read) -> Result<(), std::io::Error> {
+        self.add_file_with_flags(path, file, FileEntry::FLAG_SERIALIZEDFILE)
+    }
+
+    pub fn add_file_with_flags(
+        &mut self,
+        path: &str,
+        mut file: impl Read,
+        flags: u32,
+    ) -> Result<(), std::io::Error> {
         let offset = self.uncompressed.len();
         let len = std::io::copy(&mut file, &mut self.uncompressed)?;
         self.dir_infos.push(FileEntry {
             offset: offset as i64,
             size: len as i64,
-            flags: 4,
+            flags,
             path: path.to_owned(),
         });
 
