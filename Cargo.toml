@@ -1,17 +1,20 @@
 [package]
 name = "rabex"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 include = [
-    "src/*",
-    "examples/*",
-    "resources/lz4.tpk",
-    "Cargo.toml",
-    "README.md",
-    "LICENSE-APACHE.md",
-    "LICENSE-MIT.md",
+	"src/*",
+	"examples/*",
+	"resources/lz4.tpk",
+	"Cargo.toml",
+	"README.md",
+	"LICENSE-APACHE.md",
+	"LICENSE-MIT.md",
 ]
-authors = ["Rudolf Kolbe <rkolbe96@gmail.com>", "Jakob Hellermann <jakobhellermann@protonmail.com>"]
+authors = [
+	"Rudolf Kolbe <rkolbe96@gmail.com>",
+	"Jakob Hellermann <jakobhellermann@protonmail.com>",
+]
 description = "Tools for parsing and writing unity files, bundles and typetrees"
 documentation = "https://docs.rs/rabex"
 license = "MIT OR Apache-2.0"
@@ -42,7 +45,9 @@ num_enum = { version = "0.7", default-features = false }
 # compression formats
 lzma-rs = { version = "0.3.0", optional = true }
 brotli = { version = "8.0", optional = true }
-lz4_flex = { version = "0.13", default-features = false, features = ["std"], optional = true }
+lz4_flex = { version = "0.13", default-features = false, features = [
+	"std",
+], optional = true }
 lz4 = { version = "1.28", optional = true } # this is a c based library, which supports the lz4hc quality preset
 
 # UnityCN Encryption
