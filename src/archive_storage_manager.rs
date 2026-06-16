@@ -12,7 +12,7 @@ const UNITY3D_SIGNATURE: [u8; 16] = [
 fn decrypt_key(key: [u8; 16], data: [u8; 16], archive_key: [u8; 16]) -> [u8; 16] {
     type Aes128CbcEnc = cbc::Encryptor<aes::Aes128>;
     use aes::cipher::block_padding::NoPadding;
-    use aes::cipher::{BlockEncryptMut, KeyIvInit};
+    use aes::cipher::{BlockModeEncrypt, KeyIvInit};
 
     let mut _archive_key: [u8; 16] = [0; 16];
     _archive_key.copy_from_slice(&archive_key);
@@ -22,7 +22,7 @@ fn decrypt_key(key: [u8; 16], data: [u8; 16], archive_key: [u8; 16]) -> [u8; 16]
 
     let encryptor = Aes128CbcEnc::new(&_archive_key.into(), &_iv.into());
     encryptor
-        .encrypt_padded_mut::<NoPadding>(&mut _key, 16)
+        .encrypt_padded::<NoPadding>(&mut _key, 16)
         .unwrap();
 
     for i in 0..16 {
