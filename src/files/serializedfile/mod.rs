@@ -98,6 +98,7 @@ pub enum Endianness {
 }
 
 #[derive(Debug, Copy, Clone)]
+#[non_exhaustive]
 pub struct SerializedFileHeader {
     pub m_MetadataSize: u32,
     pub m_FileSize: i64,

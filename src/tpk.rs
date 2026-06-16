@@ -208,6 +208,7 @@ impl TpkTypeTreeBlob {
 
 #[repr(u8)]
 #[derive(Debug, Clone, TryFromPrimitive)]
+#[non_exhaustive]
 pub enum TpkCompressionType {
     None,
     Lz4,

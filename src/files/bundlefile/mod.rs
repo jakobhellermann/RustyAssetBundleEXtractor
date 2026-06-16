@@ -54,6 +54,7 @@ bitflags! {
 
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
 #[repr(u32)]
+#[non_exhaustive]
 pub enum CompressionType {
     None = 0,
     Lzma = 1,
@@ -94,6 +95,7 @@ impl FromStr for BundleSignature {
 }
 
 #[derive(Debug)]
+#[non_exhaustive]
 pub struct BundleFileHeader {
     pub signature: BundleSignature,
     pub version: u32,
