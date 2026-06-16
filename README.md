@@ -15,6 +15,12 @@ A crate for working with Unity Engine asset files. It supports reading and writi
 
 Maintained fork of [UniversalGameExtraction/RustyAssetBundleEXtractor](https://github.com/UniversalGameExtraction/RustyAssetBundleEXtractor), and source of the [rabex](https://crates.io/crates/rabex) crate on crates.io.
 
+## Features
+- parsing and writing of unity serializedfiles (`level0`, `globalgamemanagers`, `resources.assets`)
+- parsing and writing of unity bundle files (`data.unity3d`, `assetbundle.bundle`, e.g. used by addressables)
+- serde [de]serialization of objects using typetrees
+- an embedded listing of builtin typetrees using https://github.com/AssetRipper/Tpk
+
 ## Examples
 
 **Parsing an AssetBundle and dumping its objects**
