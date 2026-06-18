@@ -1,11 +1,15 @@
-# RustyAssetBundleEXtractor (rabex) [![Build Status]][actions] [![Latest Version]][crates.io] [![Docs]][docs.rs] [![License_MIT]][license_mit] [![License_APACHE]][license_apache] 
+# ⚠️ Project Notice: Maintenance & Ownership Transferred
 
-[Build Status]: https://img.shields.io/github/actions/workflow/status/UniversalGameExtraction/RustyAssetBundleEXtractor/ci.yml?branch=main
-[actions]: https://github.com/UniversalGameExtraction/RustyAssetBundleEXtractor/actions?query=branch%3Amain
-[Latest Version]: https://img.shields.io/crates/v/RustyAssetBundleEXtractor.svg
-[crates.io]: https://crates.io/crates/rabex
-[Docs]: https://docs.rs/rabex/badge.svg
-[docs.rs]: https://docs.rs/crate/rabex/
+**Development on this repository has concluded.** Due to limited time and shifting priorities, I am no longer maintaining this crate. 
+
+To ensure the project continues to thrive, full maintenance and ownership—including the **crates.io** package—have been transferred.
+Please redirect all future updates, issues, and pull requests to the active repository:
+
+➡️ **[jakobhellermann/RustyAssetBundleEXtractor](https://github.com/jakobhellermann/RustyAssetBundleEXtractor)**
+
+
+# RustyAssetBundleEXtractor (rabex) [![License_MIT]][license_mit] [![License_APACHE]][license_apache] 
+
 [License_MIT]: https://img.shields.io/badge/License-MIT-yellow.svg
 [license_mit]: https://raw.githubusercontent.com/UniversalGameExtraction/RustyAssetBundleEXtractor/main/LICENSE-MIT
 [License_APACHE]: https://img.shields.io/badge/License-Apache%202.0-blue.svg
