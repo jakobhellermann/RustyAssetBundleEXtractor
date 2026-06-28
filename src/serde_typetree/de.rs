@@ -287,6 +287,12 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
         //     int size
         //     ComponentPair data
 
+        if self.typetree.m_Type == "TypelessData" {
+            return visitor.visit_seq(ByteSeqDeserializer {
+                data: self.reader.read_bytes::<B>()?.into_iter(),
+            });
+        }
+
         if self.typetree.children.len() != 1 || self.typetree.children[0].m_Type != "Array" {
             return Err(Error::invalid_type(
                 serde::de::Unexpected::Other(&self.typetree.m_Type),
