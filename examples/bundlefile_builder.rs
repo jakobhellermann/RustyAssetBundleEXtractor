@@ -41,7 +41,7 @@ fn main() -> Result<()> {
     ];
     for path in files {
         let p = base.join(path);
-        builder.add_file_with_flags(path, BufReader::new(File::open(p)?))?;
+        builder.add_file(path, BufReader::new(File::open(p)?))?;
     }
 
     let mut out = BufWriter::new(File::create("out.unity3d")?);

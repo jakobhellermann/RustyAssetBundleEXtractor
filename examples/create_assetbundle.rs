@@ -60,7 +60,7 @@ fn main() -> Result<()> {
     builder.write(Cursor::new(&mut builder_out))?;
 
     let mut bundle = BundleFileBuilder::unityfs(7, &unity_version);
-    bundle.add_file_with_flags("CAB-bundle", Cursor::new(builder_out))?;
+    bundle.add_file("CAB-bundle", Cursor::new(builder_out))?;
 
     bundle.write(&mut out, CompressionType::None)?;
 
