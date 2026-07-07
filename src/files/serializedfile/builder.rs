@@ -3,12 +3,13 @@ use std::collections::{BTreeMap, HashMap};
 use std::io::{Cursor, Seek, Write};
 
 use crate::files::serializedfile::{
-    self, CommonOffsetMap, FileIdentifier, ObjectInfo, SerializedFile, SerializedFileHeader,
-    SerializedType, TypeTreeProvider,
+    self, CommonOffsetMap, FileIdentifier, LocalSerializedObjectIdentifier, ObjectInfo,
+    SerializedFile, SerializedFileHeader, SerializedType, TypeTreeProvider,
 };
 use crate::objects::pptr::{FileId, PathId};
-use crate::objects::{ClassId, ClassIdType};
+use crate::objects::{ClassId, ClassIdType, PPtr};
 use crate::serde_typetree;
+use crate::typetree::TypeTreeNode;
 use crate::unity_version::UnityVersion;
 use byteorder::LittleEndian;
 use rustc_hash::FxHashMap;
@@ -288,11 +289,75 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         Ok(())
     }
 
+    /// Register a MonoBehaviour type instantiating `script` (a [`PPtr`] to its `MonoScript`),
+    /// returning its `m_TypeID` for
+    /// [`add_monobehaviour_with_type`](Self::add_monobehaviour_with_type).
+    ///
+    /// `typetree` is the type tree to embed, or `None` to write without type trees.
+    pub fn add_monobehaviour_type(&mut self, script: PPtr, typetree: Option<TypeTreeNode>) -> i32 {
+        let script_types = self.serialized.m_ScriptTypes.get_or_insert_default();
+        let script_type_index: i16 = script_types
+            .len()
+            .try_into()
+            .expect("m_ScriptTypes exceeded i16::MAX");
+        script_types.push(LocalSerializedObjectIdentifier {
+            m_LocalSerializedFileIndex: script.m_FileID,
+            m_LocalIdentifierInFile: script.m_PathID,
+        });
+        let mut ty = SerializedType::simple(ClassId::MonoBehaviour, typetree);
+        ty.m_ScriptTypeIndex = script_type_index;
+        self.add_type_uncached(ty)
+    }
+
+    /// Add a MonoBehaviour using a type from
+    /// [`add_monobehaviour_type`](Self::add_monobehaviour_type), choosing the next free path id.
+    ///
+    /// Serializes `object` against that type's embedded type tree when present (else the
+    /// provider's).
+    pub fn add_monobehaviour_with_type<T: Serialize>(
+        &mut self,
+        object: &T,
+        mb_type_id: i32,
+    ) -> Result<PathId> {
+        let path_id = self.get_next_path_id();
+
+        let ty = &self.serialized.m_Types[mb_type_id as usize];
+        let script_type_index = ty.m_ScriptTypeIndex;
+        let data = match &ty.m_Type {
+            Some(tt) => serde_typetree::to_vec::<_, LittleEndian>(object, tt)
+                .map_err(serializedfile::Error::Serialize)?,
+            None => {
+                let tt = self
+                    .typetree_provider
+                    .get_typetree_node(ClassId::MonoBehaviour, &self.unity_version)
+                    .ok_or(serializedfile::Error::NoTypetree(ClassId::MonoBehaviour))?;
+                serde_typetree::to_vec::<_, LittleEndian>(object, &tt)
+                    .map_err(serializedfile::Error::Serialize)?
+            }
+        };
+
+        let info = ObjectInfo {
+            m_PathID: path_id,
+            m_Offset: 0, // ignored
+            m_Size: 0,   // ignored
+            m_TypeID: mb_type_id,
+            m_ClassID: ClassId::MonoBehaviour,
+            m_IsDestroyed: None,
+            m_ScriptTypeIndex: Some(script_type_index),
+            m_Stripped: None,
+        };
+        self.add_object_inner(info, Cow::Owned(data))?;
+        Ok(path_id)
+    }
+
     // TODO: reuse existing types if possible
     fn get_or_insert_type(&mut self, class_id: ClassId) -> i32 {
         *self.types_cache.entry(class_id).or_insert_with(|| {
             if class_id == ClassId::MonoBehaviour {
-                todo!();
+                panic!(
+                    "MonoBehaviour objects need a script-bound type; \
+                     use add_monobehaviour_type + add_monobehaviour_with_type instead of add_object_at"
+                );
             }
 
             // PERF: don't construct if not required
@@ -330,6 +395,11 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
             .find_map(|(i, e)| (e.pathName == external).then_some(FileId::from_externals_index(i)));
         file_id
             .unwrap_or_else(|| self.add_external_uncached(FileIdentifier::new(external.to_owned())))
+    }
+
+    /// The Unity version this file is being built for.
+    pub fn unity_version(&self) -> &UnityVersion {
+        &self.unity_version
     }
 
     pub fn get_next_path_id(&mut self) -> PathId {
