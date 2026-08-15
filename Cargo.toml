@@ -70,6 +70,9 @@ memmap2 = "0.9"
 pretty_assertions = "1.4"
 rayon = "1.10"
 serde_json = { version = "1.0", features = ["preserve_order"] }
+serde-value = { git = "https://github.com/jakobhellermann/serde-value", branch = "preserve-order", features = [
+  "preserve_order",
+] }
 
 [workspace]
 members = [".", "fuzz"]

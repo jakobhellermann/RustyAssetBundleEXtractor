@@ -75,7 +75,7 @@ fn assert_roundtrip_all(path: &Path, tts: &TpkTypeTreeBlob) -> Result<()> {
         let raw = serialized.read_raw(object, reader)?;
         reader.set_position(object.m_Offset as u64);
         let value = tt
-            .read::<serde_json::Value, _, LittleEndian>(reader)
+            .read::<serde_value::Value, _, LittleEndian>(reader)
             .with_context(|| format!("deserializing {:?} {}", object.m_ClassID, object.m_PathID))?;
         // println!("[Try] {} {:?}", object.m_PathID, object.m_ClassID);
         // println!("[TT]  {}", tt.dump());
