@@ -8,7 +8,8 @@
 use std::io::Cursor;
 
 use rabex::files::SerializedFile;
-use rabex::files::serializedfile::{self, builder::SerializedFileBuilder};
+use rabex::files::serializedfile::builder::SerializedFileBuilder;
+use rabex::files::serializedfile::{self};
 use rabex::objects::pptr::FileId;
 use rabex::objects::{ClassId, ClassIdType, PPtr};
 use rabex::typetree::TypeTreeProvider;

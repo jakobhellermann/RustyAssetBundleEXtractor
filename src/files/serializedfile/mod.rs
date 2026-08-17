@@ -168,7 +168,8 @@ impl SerializedFileHeader {
             writer.write_u32::<BigEndian>(self.m_FileSize as u32)?;
             writer.write_u32::<BigEndian>(self.m_Version)?;
             writer.write_u32::<BigEndian>(self.m_DataOffset as u32)?;
-            todo!();
+            writer.write_u8(self.m_Endianess as u8)?;
+            writer.write_all(&self.m_Reserved)?;
         }
         Ok(())
     }
@@ -376,6 +377,7 @@ impl LocalSerializedObjectIdentifier {
             {
                 reader.read_i32::<B>()? as i64
             } else {
+                reader.align(4)?;
                 reader.read_i64::<B>()?
             },
         })
@@ -497,6 +499,7 @@ impl ScriptType {
             {
                 reader.read_i32::<B>()? as i64
             } else {
+                reader.align(4)?;
                 reader.read_i64::<B>()?
             },
         })
@@ -1258,6 +1261,12 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
 
         if (11..17).contains(&version) {
             writer.write_i16::<B>(obj.m_ScriptTypeIndex.unwrap())?;
+        }
+
+        if version == SerializedFileFormatVersion::SUPPORTS_STRIPPED_OBJECT.bits()
+            || version == SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits()
+        {
+            writer.write_u8(obj.m_Stripped.unwrap())?;
         }
 
         object_count += 1;

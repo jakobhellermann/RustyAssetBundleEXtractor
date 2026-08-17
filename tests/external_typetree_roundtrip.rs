@@ -25,7 +25,9 @@ fn roundtrip_typetree() -> Result<()> {
                 };
                 let name = entry.file_name();
                 let name = name.to_str().unwrap();
-                name.starts_with("level").then_some(entry.path()).map(Ok)
+                (name.starts_with("level") || name.ends_with(".assets"))
+                    .then_some(entry.path())
+                    .map(Ok)
             })
             .collect::<Result<Vec<_>, std::io::Error>>()?;
 
