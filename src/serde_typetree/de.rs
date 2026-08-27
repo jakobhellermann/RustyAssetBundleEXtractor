@@ -140,6 +140,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
             Kind::Char => self.deserialize_char(visitor),
             Kind::String => self.deserialize_string(visitor),
             Kind::Map => self.deserialize_map(visitor),
+            // Not visit_byte_buf: serde_json::Value has no bytes support and would error.
             Kind::Untyped => visitor.visit_seq(ByteSeqDeserializer {
                 data: self.reader.read_bytes::<B>()?.into_iter(),
             }),
