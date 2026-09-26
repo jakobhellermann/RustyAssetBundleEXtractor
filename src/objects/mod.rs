@@ -2,7 +2,7 @@
 mod class_id;
 pub mod pptr;
 
-pub use class_id::ClassId;
+pub use class_id::{ClassId, UnknownClassIdError};
 pub use pptr::{PPtr, TypedPPtr};
 
 /// A trait associating its type to a [`ClassId`].

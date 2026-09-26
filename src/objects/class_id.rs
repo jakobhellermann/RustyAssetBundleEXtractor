@@ -14,6 +14,28 @@ impl ClassId {
     }
 }
 
+#[derive(Debug)]
+pub struct UnknownClassIdError(String);
+
+impl std::fmt::Display for UnknownClassIdError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "unknown class ID: {}", self.0)
+    }
+}
+
+impl std::error::Error for UnknownClassIdError {}
+
+impl std::str::FromStr for ClassId {
+    type Err = UnknownClassIdError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        CLASS_ID_NAME
+            .iter()
+            .find_map(|(class_id, name)| (*name == s).then_some(*class_id))
+            .ok_or_else(|| UnknownClassIdError(s.to_owned()))
+    }
+}
+
 impl std::fmt::Debug for ClassId {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.name() {
