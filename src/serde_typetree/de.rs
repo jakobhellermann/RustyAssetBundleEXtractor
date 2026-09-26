@@ -517,6 +517,16 @@ impl<'de, R: Read + Seek, B: ByteOrder> MapAccess<'de> for FieldStructDeserializ
             }
         }
 
+        while let Some(child) = self.typetree.children.get(self.next_index) {
+            self.next_index += 1;
+            Deserializer {
+                typetree: child,
+                reader: self.reader.by_ref(),
+                marker: self.marker,
+            }
+            .deserialize_ignored_any(IgnoredAny)?;
+        }
+
         Ok(None)
     }
 
@@ -769,5 +779,79 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de>
         bool i8 i16 i32 i64 u8 u16 u32 u64 f32 f64 char bytes byte_buf identifier
         option unit unit_struct newtype_struct seq tuple
         tuple_struct map struct enum ignored_any
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use crate::typetree::TypeTreeNode;
+
+    use super::from_slice;
+
+    #[derive(Debug, serde_derive::Deserialize)]
+    struct PartialValue {
+        wanted: u32,
+    }
+
+    fn node(ty: &str, name: &str, children: Vec<TypeTreeNode>) -> TypeTreeNode {
+        TypeTreeNode {
+            m_Type: ty.to_owned(),
+            m_Name: name.to_owned(),
+            children,
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn partial_map_value_skips_trailing_fields_before_next_key() {
+        let value_type = node(
+            "Value",
+            "second",
+            vec![
+                node("UInt32", "wanted", vec![]),
+                node(
+                    "vector",
+                    "trailing",
+                    vec![node(
+                        "Array",
+                        "Array",
+                        vec![
+                            node("int", "size", vec![]),
+                            node("SecondarySpriteTexture", "data", vec![]),
+                        ],
+                    )],
+                ),
+            ],
+        );
+        let pair_type = node(
+            "pair",
+            "data",
+            vec![node("string", "first", vec![]), value_type],
+        );
+        let array_type = node(
+            "Array",
+            "Array",
+            vec![node("int", "size", vec![]), pair_type],
+        );
+        let map_type = node("map", "values", vec![array_type]);
+
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&2_i32.to_le_bytes());
+        bytes.extend_from_slice(&4_i32.to_le_bytes());
+        bytes.extend_from_slice(b"ABCD");
+        bytes.extend_from_slice(&10_u32.to_le_bytes());
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
+        bytes.extend_from_slice(&4_i32.to_le_bytes());
+        bytes.extend_from_slice(b"WXYZ");
+        bytes.extend_from_slice(&20_u32.to_le_bytes());
+        bytes.extend_from_slice(&0_u32.to_le_bytes());
+
+        let values: HashMap<String, PartialValue> =
+            from_slice::<_, byteorder::LE>(&bytes, &map_type).unwrap();
+
+        assert_eq!(values.get("ABCD").unwrap().wanted, 10);
+        assert_eq!(values.get("WXYZ").unwrap().wanted, 20);
     }
 }
