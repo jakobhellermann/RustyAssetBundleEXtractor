@@ -358,10 +358,12 @@ impl ClassId {
     pub const PluginBuildInfo: ClassId = ClassId(382020655);
     pub const UIAnimationBinder: ClassId = ClassId(382093023);
     pub const MemorySettings: ClassId = ClassId(387306366);
+    pub const UIAnimationClip: ClassId = ClassId(392092235);
     pub const BuildMetaDataImporter: ClassId = ClassId(403037116);
     pub const BuildInstructionImporter: ClassId = ClassId(403037117);
     pub const EditorProjectAccess: ClassId = ClassId(426301858);
     pub const PrefabImporter: ClassId = ClassId(468431735);
+    pub const WebGPUDeviceFilterLists: ClassId = ClassId(475525288);
     pub const TestObjectWithSerializedArray: ClassId = ClassId(478637458);
     pub const TestObjectWithSerializedAnimationCurve: ClassId = ClassId(478637459);
     pub const TilemapRenderer: ClassId = ClassId(483693784);
@@ -401,6 +403,7 @@ impl ClassId {
     pub const PropertyModificationsTargetTestObject: ClassId = ClassId(1111377672);
     pub const ReferencesArtifactGenerator: ClassId = ClassId(1114811875);
     pub const RenderAs2D: ClassId = ClassId(1120581460);
+    pub const BuildProfilePlayerSettings: ClassId = ClassId(1138963649);
     pub const BlockShaderSourceArtifact: ClassId = ClassId(1149764431);
     // Renamed from: "AssemblyJsonAsset"
     pub const AssemblyDefinitionAsset: ClassId = ClassId(1152215463);
@@ -775,10 +778,12 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::PluginBuildInfo, "PluginBuildInfo"),
     (ClassId::UIAnimationBinder, "UIAnimationBinder"),
     (ClassId::MemorySettings, "MemorySettings"),
+    (ClassId::UIAnimationClip, "UIAnimationClip"),
     (ClassId::BuildMetaDataImporter, "BuildMetaDataImporter"),
     (ClassId::BuildInstructionImporter, "BuildInstructionImporter"),
     (ClassId::EditorProjectAccess, "EditorProjectAccess"),
     (ClassId::PrefabImporter, "PrefabImporter"),
+    (ClassId::WebGPUDeviceFilterLists, "WebGPUDeviceFilterLists"),
     (ClassId::TestObjectWithSerializedArray, "TestObjectWithSerializedArray"),
     (ClassId::TestObjectWithSerializedAnimationCurve, "TestObjectWithSerializedAnimationCurve"),
     (ClassId::TilemapRenderer, "TilemapRenderer"),
@@ -818,6 +823,7 @@ pub static CLASS_ID_NAME: LazyLock<BTreeMap<ClassId, &'static str>> = LazyLock::
     (ClassId::PropertyModificationsTargetTestObject, "PropertyModificationsTargetTestObject"),
     (ClassId::ReferencesArtifactGenerator, "ReferencesArtifactGenerator"),
     (ClassId::RenderAs2D, "RenderAs2D"),
+    (ClassId::BuildProfilePlayerSettings, "BuildProfilePlayerSettings"),
     (ClassId::BlockShaderSourceArtifact, "BlockShaderSourceArtifact"),
     (ClassId::AssemblyDefinitionAsset, "AssemblyDefinitionAsset"),
     (ClassId::SceneVisibilityState, "SceneVisibilityState"),
