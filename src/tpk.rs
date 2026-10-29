@@ -101,12 +101,27 @@ use crate::unity_version::{UnityVersion, UnityVersionType};
 
 /// The TPK container type, contained (possibly compressed) data for the inner format.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct TpkFile {
+    pub version: u8,
     pub compression_type: TpkCompressionType,
     pub data_type: TpkDataType,
     pub compressed_size: i32,
     pub uncompressed_size: i32,
     pub compressed_bytes: Vec<u8>,
+}
+
+impl Default for TpkFile {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            compression_type: TpkCompressionType::None,
+            data_type: TpkDataType::TypeTreeInformation,
+            compressed_size: 0,
+            uncompressed_size: 0,
+            compressed_bytes: Vec::new(),
+        }
+    }
 }
 
 impl TpkFile {
@@ -116,9 +131,9 @@ impl TpkFile {
             return Err(Error::InvalidMagic);
         }
 
-        let version_number = reader.read_u8()?;
-        if version_number != 1 {
-            return Err(Error::UnsupportedVersion(version_number));
+        let version = reader.read_u8()?;
+        if !matches!(version, 1 | 2) {
+            return Err(Error::UnsupportedVersion(version));
         }
 
         let compression_type = TpkCompressionType::try_from(reader.read_u8()?)?;
@@ -131,6 +146,7 @@ impl TpkFile {
         reader.read_exact(&mut compressed_bytes)?;
 
         Ok(TpkFile {
+            version,
             compression_type,
             data_type,
             compressed_size,
@@ -186,7 +202,7 @@ impl TpkFile {
         match self.data_type {
             TpkDataType::TypeTreeInformation => {
                 let data = self.decompress()?;
-                let type_tree = TpkTypeTreeBlob::from_reader(&mut data.as_ref())?;
+                let type_tree = TpkTypeTreeBlob::from_reader(&mut data.as_ref(), self.version)?;
 
                 Ok(Some(type_tree))
             }
@@ -218,6 +234,7 @@ pub enum TpkCompressionType {
 
 #[repr(u8)]
 #[derive(Debug, Clone, TryFromPrimitive)]
+#[non_exhaustive]
 pub enum TpkDataType {
     /// Information about the structure of Unity assets
     TypeTreeInformation = 0,
@@ -235,6 +252,7 @@ pub enum TpkDataType {
 
 /// Size-Optimized store of unity type trees across multiple unity versions.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct TpkTypeTreeBlob {
     pub creation_time: i64,
     pub versions: Vec<UnityVersion>,
@@ -245,6 +263,7 @@ pub struct TpkTypeTreeBlob {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct TpkClassInformation {
     pub id: i32,
     pub classes: Vec<(UnityVersion, Option<UnityClass>)>,
@@ -291,6 +310,7 @@ pub struct TpkUnityClassFlags : u8 {
 }
 
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct UnityClass {
     pub name: u16,
     pub base: u16,
@@ -322,13 +342,59 @@ impl UnityClass {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TpkCommonStringEntry {
+    /// Byte offset of the string in the common string table
+    pub offset: u16,
+    /// Index into [`TpkTypeTreeBlob::string_buffer`]
+    pub string: u16,
+}
+
+/// Common string tables, sequential by ascending Unity version.
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct TpkCommonString {
-    pub version_information: Vec<(UnityVersion, u8)>,
-    pub string_buffer_indices: Vec<u16>,
+    pub version_information: Vec<(UnityVersion, Vec<TpkCommonStringEntry>)>,
 }
 impl TpkCommonString {
-    pub fn read<R: Read>(reader: &mut R) -> Result<TpkCommonString> {
+    fn read_v2<R: Read>(reader: &mut R) -> Result<TpkCommonString> {
+        let version_count = reader.read_i32::<LittleEndian>()?;
+        let mut version_information = Vec::with_capacity(version_count as usize);
+        for _ in 0..version_count {
+            let version = UnityVersion::read_tpk_encoding(reader)?;
+            let entry_count = reader.read_i32::<LittleEndian>()?;
+            let mut entries = Vec::with_capacity(entry_count as usize);
+            for _ in 0..entry_count {
+                entries.push(TpkCommonStringEntry {
+                    offset: reader.read_u16::<LittleEndian>()?,
+                    string: reader.read_u16::<LittleEndian>()?,
+                });
+            }
+            version_information.push((version, entries));
+        }
+        Ok(TpkCommonString {
+            version_information,
+        })
+    }
+
+    pub fn get_entries(&self, target_version: &UnityVersion) -> Option<&[TpkCommonStringEntry]> {
+        self.version_information
+            .iter()
+            .rev()
+            .find_map(|(version, entries)| {
+                (target_version >= version).then_some(entries.as_slice())
+            })
+    }
+}
+
+/// The v1 format stores one append-only string list and a per-version prefix length.
+struct TpkCommonStringV1 {
+    version_information: Vec<(UnityVersion, u8)>,
+    string_buffer_indices: Vec<u16>,
+}
+impl TpkCommonStringV1 {
+    fn read<R: Read>(reader: &mut R) -> Result<TpkCommonStringV1> {
         let version_count = reader.read_i32::<LittleEndian>()?;
         let mut version_information = Vec::with_capacity(version_count as usize);
         for _ in 0..version_count {
@@ -337,39 +403,45 @@ impl TpkCommonString {
             version_information.push((version, string_count));
         }
         let indices_count = reader.read_i32::<LittleEndian>()?;
-        let mut string_buffer_indices = Vec::new();
+        let mut string_buffer_indices = Vec::with_capacity(indices_count as usize);
         for _ in 0..indices_count {
             string_buffer_indices.push(reader.read_u16::<LittleEndian>()?);
         }
-
-        Ok(TpkCommonString {
+        Ok(TpkCommonStringV1 {
             version_information,
             string_buffer_indices,
         })
     }
 
-    pub fn get_count(&self, target_version: &UnityVersion) -> Option<u8> {
-        let mut ret = None;
-        for (version, item) in &self.version_information {
-            if target_version >= version {
-                ret = Some(*item)
-            } else {
-                break;
-            }
+    fn resolve(self, string_buffer: &[String]) -> TpkCommonString {
+        let mut all_entries = Vec::with_capacity(self.string_buffer_indices.len());
+        let mut offset = 0usize;
+        for string in self.string_buffer_indices {
+            all_entries.push(TpkCommonStringEntry {
+                offset: u16::try_from(offset).unwrap(),
+                string,
+            });
+            offset += string_buffer[string as usize].len() + 1;
         }
 
-        let iter = self
+        let version_information = self
             .version_information
-            .iter()
-            .rev()
-            .find_map(|(version, item)| (target_version >= version).then_some(*item));
-        assert_eq!(iter, ret);
-
-        ret
+            .into_iter()
+            .map(|(version, count)| (version, all_entries[..count as usize].to_vec()))
+            .collect();
+        TpkCommonString {
+            version_information,
+        }
     }
 }
 
+enum CommonStringRaw {
+    V1(TpkCommonStringV1),
+    V2(TpkCommonString),
+}
+
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct TpkUnityNode {
     pub type_name: u16,
     pub name: u16,
@@ -425,7 +497,8 @@ impl UnityVersion {
 }
 
 impl TpkTypeTreeBlob {
-    pub fn from_reader<R: Read>(reader: &mut R) -> Result<TpkTypeTreeBlob> {
+    /// `version` is the [`TpkFile::version`] of the containing file.
+    pub fn from_reader<R: Read>(reader: &mut R, version: u8) -> Result<TpkTypeTreeBlob> {
         let creation_time = reader.read_i64::<LittleEndian>()?;
 
         let version_count = reader.read_i32::<LittleEndian>()? as usize;
@@ -442,7 +515,11 @@ impl TpkTypeTreeBlob {
             class_information.insert(ClassId(class.id), class.classes);
         }
 
-        let common_string = TpkCommonString::read(reader)?;
+        let common_string = match version {
+            1 => CommonStringRaw::V1(TpkCommonStringV1::read(reader)?),
+            2 => CommonStringRaw::V2(TpkCommonString::read_v2(reader)?),
+            _ => return Err(Error::UnsupportedVersion(version)),
+        };
 
         let node_count = reader.read_i32::<LittleEndian>()?;
         let mut node_buffer = Vec::new();
@@ -454,6 +531,10 @@ impl TpkTypeTreeBlob {
         for _ in 0..string_count {
             string_buffer.push(read_7bit_encoded_string(reader)?);
         }
+        let common_string = match common_string {
+            CommonStringRaw::V1(v1) => v1.resolve(&string_buffer),
+            CommonStringRaw::V2(v2) => v2,
+        };
 
         Ok(TpkTypeTreeBlob {
             creation_time,
@@ -589,29 +670,121 @@ fn reconstruct_tree(mut flat_nodes: Vec<(u8, TypeTreeNode)>) -> TypeTreeNode {
     root
 }
 
+#[cfg(test)]
+mod format_tests {
+    use super::{TpkCommonString, TpkCommonStringEntry, TpkFile};
+    use crate::unity_version::UnityVersion;
+
+    fn version(major: u16, minor: u16) -> (u64, UnityVersion) {
+        // 'f1' release type
+        let encoded = (major as u64) << 48 | (minor as u64) << 32 | 3 << 8 | 1;
+        let parsed = format!("{major}.{minor}.0f1").parse().unwrap();
+        (encoded, parsed)
+    }
+
+    /// Uncompressed TPK with no classes or nodes, the strings `AABB` and `Array`, and the given
+    /// encoded common string section.
+    fn tpk_bytes(file_version: u8, common_string: &[u8]) -> Vec<u8> {
+        let mut blob = Vec::new();
+        blob.extend(0i64.to_le_bytes()); // creation time
+        blob.extend(0i32.to_le_bytes()); // versions
+        blob.extend(0i32.to_le_bytes()); // classes
+        blob.extend(common_string);
+        blob.extend(0i32.to_le_bytes()); // nodes
+        blob.extend(2i32.to_le_bytes()); // strings
+        for s in ["AABB", "Array"] {
+            blob.push(s.len() as u8);
+            blob.extend(s.as_bytes());
+        }
+
+        let mut file = b"TPK*".to_vec();
+        file.extend([file_version, 0, 0, 0]); // version, no compression, type tree, reserved
+        file.extend(0u32.to_le_bytes()); // reserved
+        file.extend((blob.len() as i32).to_le_bytes());
+        file.extend((blob.len() as i32).to_le_bytes());
+        file.extend(blob);
+        file
+    }
+
+    fn expected() -> TpkCommonString {
+        let aabb = TpkCommonStringEntry {
+            offset: 0,
+            string: 0,
+        };
+        let array = TpkCommonStringEntry {
+            offset: 5,
+            string: 1,
+        };
+        TpkCommonString {
+            version_information: vec![
+                (version(5, 0).1, vec![aabb.clone()]),
+                (version(2019, 1).1, vec![aabb, array]),
+            ],
+        }
+    }
+
+    fn parse(bytes: &[u8]) -> TpkCommonString {
+        let file = TpkFile::from_reader(&mut &bytes[..]).unwrap();
+        file.as_type_tree().unwrap().unwrap().common_string
+    }
+
+    #[test]
+    fn common_string_v1() {
+        let mut cs = Vec::new();
+        cs.extend(2i32.to_le_bytes());
+        cs.extend(version(5, 0).0.to_le_bytes());
+        cs.push(1);
+        cs.extend(version(2019, 1).0.to_le_bytes());
+        cs.push(2);
+        cs.extend(2i32.to_le_bytes());
+        cs.extend(0u16.to_le_bytes());
+        cs.extend(1u16.to_le_bytes());
+
+        assert_eq!(parse(&tpk_bytes(1, &cs)), expected());
+    }
+
+    #[test]
+    fn common_string_v2() {
+        let mut cs = Vec::new();
+        cs.extend(2i32.to_le_bytes());
+        cs.extend(version(5, 0).0.to_le_bytes());
+        cs.extend(1i32.to_le_bytes());
+        cs.extend([0u16, 0].iter().flat_map(|x| x.to_le_bytes()));
+        cs.extend(version(2019, 1).0.to_le_bytes());
+        cs.extend(2i32.to_le_bytes());
+        cs.extend([0u16, 0, 5, 1].iter().flat_map(|x| x.to_le_bytes()));
+
+        assert_eq!(parse(&tpk_bytes(2, &cs)), expected());
+    }
+
+    #[test]
+    fn unsupported_version() {
+        let err = TpkFile::from_reader(&mut &tpk_bytes(3, &[])[..]).unwrap_err();
+        assert!(matches!(err, super::Error::UnsupportedVersion(3)), "{err}");
+    }
+}
+
 #[cfg(all(test, feature = "embed-tpk"))]
 mod commonstring_tests {
     use super::TpkTypeTreeBlob;
     use crate::commonstring::COMMONSTRING;
     use std::collections::BTreeMap;
 
-    /// `src/commonstring.rs` is generated from the TPK via `just update-commonstring`. This
-    /// guards against it drifting — a hand edit, or a TPK update without regenerating. The
-    /// hardcoded read table must equal the full TPK-derived common string table.
+    /// `src/commonstring.rs` is generated from the TPK via `just update-commonstring`,
+    /// the two should agree.
     #[test]
     fn commonstring_matches_tpk() {
         let tpk = TpkTypeTreeBlob::embedded();
         let mut tpk_map = BTreeMap::new();
-        let mut offset = 0u32;
-        for &i in &tpk.common_string.string_buffer_indices {
-            let s = tpk.string_buffer[i as usize].as_str();
-            tpk_map.insert(offset, s);
-            offset += s.len() as u32 + 1;
+        for (version, entries) in &tpk.common_string.version_information {
+            for entry in entries {
+                let s = tpk.string_buffer[entry.string as usize].as_str();
+                if let Some(prev) = tpk_map.insert(entry.offset as u32, s) {
+                    assert_eq!(prev, s, "offset {} in {version}", entry.offset);
+                }
+            }
         }
 
-        assert_eq!(COMMONSTRING.len(), tpk_map.len());
-        for (off, s) in COMMONSTRING.iter() {
-            assert_eq!(tpk_map.get(off).copied(), Some(*s), "offset {off}");
-        }
+        assert_eq!(*COMMONSTRING, tpk_map);
     }
 }

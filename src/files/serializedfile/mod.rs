@@ -1368,22 +1368,17 @@ pub fn build_common_offset_map<'a>(
     tpk: &'a TpkTypeTreeBlob,
     unity_version: &UnityVersion,
 ) -> CommonOffsetMap<'a> {
-    let strings = tpk
-        .common_string
-        .string_buffer_indices
+    tpk.common_string
+        .get_entries(unity_version)
+        .unwrap()
         .iter()
-        .map(|&i| &tpk.string_buffer[i as usize])
-        .collect::<Vec<_>>();
-    let count = tpk.common_string.get_count(unity_version).unwrap();
-    let strings = &strings[..count as usize];
-
-    let mut map = HashMap::new();
-    let mut offset = 0;
-    for str in strings {
-        map.insert(str.as_str(), offset as u32);
-        offset += str.len() + 1
-    }
-    map
+        .map(|entry| {
+            (
+                tpk.string_buffer[entry.string as usize].as_str(),
+                entry.offset as u32,
+            )
+        })
+        .collect()
 }
 
 fn write_n_zeroes<W: Write>(writer: &mut W, n: usize) -> std::io::Result<()> {
