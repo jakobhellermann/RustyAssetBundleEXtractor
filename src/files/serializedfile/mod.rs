@@ -996,12 +996,17 @@ impl SerializedFile {
     }
 
     pub fn script_type(&self, info: &ObjectInfo) -> Option<PPtr> {
-        let index = usize::try_from(info.m_TypeID).ok()?;
-        let ty = &self.m_Types.get(index)?;
+        let script_index = match info.m_ScriptTypeIndex {
+            Some(index) => index,
+            None => {
+                let index = usize::try_from(info.m_TypeID).ok()?;
+                self.m_Types.get(index)?.m_ScriptTypeIndex
+            }
+        };
         let script_type = *self
             .m_ScriptTypes
             .as_deref()?
-            .get(ty.m_ScriptTypeIndex as usize)?;
+            .get(usize::try_from(script_index).ok()?)?;
         Some(PPtr::from(script_type))
     }
 
