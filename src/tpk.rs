@@ -96,8 +96,16 @@ use std::io::Read;
 use byteorder::{LittleEndian, ReadBytesExt};
 
 use crate::objects::ClassId;
+use crate::read_ext::invalid_data;
 use crate::typetree::TypeTreeNode;
 use crate::unity_version::{UnityVersion, UnityVersionType};
+
+// Bounds on the type trees built from the node buffer, which a malformed file could make
+// infinite or exponentially large: the levels in one tree, its nodes, and the bytes of type
+// and field names copied into its nodes. Unity's own trees stay far below all three.
+const MAX_TYPETREE_DEPTH: usize = 1024;
+const MAX_TYPETREE_NODES: usize = 65536;
+const MAX_TYPETREE_STRING_BYTES: usize = 16 << 20;
 
 /// The TPK container type, contained (possibly compressed) data for the inner format.
 #[derive(Debug, Clone)]
@@ -127,8 +135,9 @@ impl TpkFile {
         reader.read_u32::<LittleEndian>()?;
         let compressed_size = reader.read_i32::<LittleEndian>()?;
         let decompressed_size = reader.read_i32::<LittleEndian>()?;
-        let mut compressed_bytes = vec![0; compressed_size as usize]; // TODO resilience
-        reader.read_exact(&mut compressed_bytes)?;
+        let compressed_len = usize::try_from(compressed_size)
+            .map_err(|_| invalid_data("negative compressed size"))?;
+        let compressed_bytes = read_exact_vec(reader, compressed_len)?;
 
         Ok(TpkFile {
             compression_type,
@@ -147,7 +156,13 @@ impl TpkFile {
             TpkCompressionType::Lz4 => return Err(Error::UnsupportedCompression("lz4")),
             #[cfg(feature = "compression-lz4")]
             TpkCompressionType::Lz4 => {
-                lz4_flex::block::decompress(&self.compressed_bytes, self.uncompressed_size as usize)
+                let len = self.uncompressed_len()?;
+                // an LZ4 block expands to at most 255 times its size, so don't allocate
+                // for an uncompressed size it cannot reach
+                if len > self.compressed_bytes.len().saturating_mul(255) {
+                    return Err(invalid_data("uncompressed size too large for LZ4 block").into());
+                }
+                lz4_flex::block::decompress(&self.compressed_bytes, len)
                     .map_err(|e| Error::Decompression(Box::new(e)))?
                     .into()
             }
@@ -155,7 +170,7 @@ impl TpkFile {
             TpkCompressionType::Lzma => return Err(Error::UnsupportedCompression("lzma")),
             #[cfg(feature = "compression-lzma")]
             TpkCompressionType::Lzma => {
-                let mut uncompressed = vec![0; self.uncompressed_size as usize];
+                let mut uncompressed = vec![0; self.uncompressed_len()?];
                 lzma_rs::lzma_decompress_with_options(
                     &mut self.compressed_bytes.as_slice(),
                     &mut uncompressed,
@@ -174,11 +189,16 @@ impl TpkFile {
             TpkCompressionType::Brotli => return Err(Error::UnsupportedCompression("brotli")),
             #[cfg(feature = "tpk-compression-brotli")]
             TpkCompressionType::Brotli => {
-                let mut uncompressed = vec![0; self.uncompressed_size as usize];
+                let mut uncompressed = vec![0; self.uncompressed_len()?];
                 brotli::BrotliDecompress(&mut self.compressed_bytes.as_slice(), &mut uncompressed)?;
                 Cow::Owned(uncompressed)
             }
         })
+    }
+
+    fn uncompressed_len(&self) -> Result<usize> {
+        usize::try_from(self.uncompressed_size)
+            .map_err(|_| invalid_data("negative uncompressed size").into())
     }
 
     /// Reads the inner data in case of [`TpkDataType::TypeTreeInformation`]
@@ -253,7 +273,7 @@ impl TpkClassInformation {
     pub fn read<R: Read>(reader: &mut R) -> Result<TpkClassInformation> {
         let id = reader.read_i32::<LittleEndian>()?;
         let count = reader.read_i32::<LittleEndian>()?;
-        let mut classes = Vec::with_capacity(count as usize);
+        let mut classes = Vec::new();
         for _ in 0..count {
             let version = UnityVersion::read_tpk_encoding(reader)?;
             let has_class_data = reader.read_u8()? != 0;
@@ -330,7 +350,7 @@ pub struct TpkCommonString {
 impl TpkCommonString {
     pub fn read<R: Read>(reader: &mut R) -> Result<TpkCommonString> {
         let version_count = reader.read_i32::<LittleEndian>()?;
-        let mut version_information = Vec::with_capacity(version_count as usize);
+        let mut version_information = Vec::new();
         for _ in 0..version_count {
             let version = UnityVersion::read_tpk_encoding(reader)?;
             let string_count = reader.read_u8()?;
@@ -357,13 +377,6 @@ impl TpkCommonString {
                 break;
             }
         }
-
-        let iter = self
-            .version_information
-            .iter()
-            .rev()
-            .find_map(|(version, item)| (target_version >= version).then_some(*item));
-        assert_eq!(iter, ret);
 
         ret
     }
@@ -428,15 +441,14 @@ impl TpkTypeTreeBlob {
     pub fn from_reader<R: Read>(reader: &mut R) -> Result<TpkTypeTreeBlob> {
         let creation_time = reader.read_i64::<LittleEndian>()?;
 
-        let version_count = reader.read_i32::<LittleEndian>()? as usize;
-        let mut versions = Vec::with_capacity(version_count);
+        let version_count = reader.read_i32::<LittleEndian>()?;
+        let mut versions = Vec::new();
         for _ in 0..version_count {
             versions.push(UnityVersion::read_tpk_encoding(reader)?);
         }
 
-        let class_count = reader.read_i32::<LittleEndian>()? as usize;
-        let mut class_information =
-            FxHashMap::with_capacity_and_hasher(class_count, Default::default());
+        let class_count = reader.read_i32::<LittleEndian>()?;
+        let mut class_information = FxHashMap::default();
         for _ in 0..class_count {
             let class = TpkClassInformation::read(reader)?;
             class_information.insert(ClassId(class.id), class.classes);
@@ -489,6 +501,7 @@ impl TpkTypeTreeBlob {
         editor: bool,
     ) -> Option<TypeTreeNode> {
         let mut nodes = Vec::new();
+        let mut string_bytes = 0;
 
         let mut stack = VecDeque::new();
 
@@ -501,9 +514,18 @@ impl TpkTypeTreeBlob {
 
         // adapted from https://github.com/K0lb3/UnityPy/blob/62bf31064bb36659661f024a770f6e55f3fbd3d3/UnityPy/helpers/Tpk.py#L55
         while let Some((node_id, level)) = stack.pop_front() {
-            let node = &self.node_buffer[node_id as usize];
-            let type_name = &self.string_buffer[node.type_name as usize];
-            let name = &self.string_buffer[node.name as usize];
+            // a node listing itself or one of its ancestors makes the tree infinite
+            if level >= MAX_TYPETREE_DEPTH {
+                return None;
+            }
+            let node = self.node_buffer.get(node_id as usize)?;
+            let type_name = self.string_buffer.get(node.type_name as usize)?;
+            let name = self.string_buffer.get(node.name as usize)?;
+            // a long string shared by many nodes is copied into each of them
+            string_bytes += type_name.len() + name.len();
+            if string_bytes > MAX_TYPETREE_STRING_BYTES {
+                return None;
+            }
             nodes.push((
                 level,
                 TypeTreeNode {
@@ -518,6 +540,10 @@ impl TpkTypeTreeBlob {
                     children: Vec::new(),
                 },
             ));
+            // nodes shared by several parents can still make it exponentially large
+            if nodes.len() + stack.len() + node.sub_nodes.len() > MAX_TYPETREE_NODES {
+                return None;
+            }
             for &sub_node_id in node.sub_nodes.iter().rev() {
                 stack.push_front((sub_node_id, level + 1));
             }
@@ -553,10 +579,21 @@ fn read_7bit_encoded_int<R: Read>(reader: &mut R) -> Result<usize, std::io::Erro
 /// Reads a 7-bit-length-prefixed UTF-8 string from a stream
 fn read_7bit_encoded_string<R: Read>(reader: &mut R) -> Result<String> {
     let len = read_7bit_encoded_int(reader)?;
-    let mut buffer = vec![0u8; len];
-    reader.read_exact(&mut buffer)?;
+    let buffer = read_exact_vec(reader, len)?;
     let string = String::from_utf8(buffer).map_err(Error::UTF8)?;
     Ok(string)
+}
+
+/// Reads exactly `len` bytes. Unlike `ReadUrexExt::read_bytes_sized`, the buffer grows as the
+/// bytes arrive instead of being allocated for `len` up front, so a length read from a corrupt
+/// file can't allocate gigabytes.
+fn read_exact_vec<R: Read>(reader: &mut R, len: usize) -> Result<Vec<u8>, std::io::Error> {
+    let mut buffer = Vec::new();
+    reader.take(len as u64).read_to_end(&mut buffer)?;
+    if buffer.len() != len {
+        return Err(std::io::ErrorKind::UnexpectedEof.into());
+    }
+    Ok(buffer)
 }
 
 /// Given a flat list of TypeTreeNodes, reconstruct the tree in memory.
@@ -569,7 +606,7 @@ fn read_7bit_encoded_string<R: Read>(reader: &mut R) -> Result<String> {
 ///   level=1 idx=3
 /// level=0 idx=3
 /// level=0 idx=4
-fn reconstruct_tree(mut flat_nodes: Vec<(u8, TypeTreeNode)>) -> TypeTreeNode {
+fn reconstruct_tree(mut flat_nodes: Vec<(usize, TypeTreeNode)>) -> TypeTreeNode {
     fn access(mut node: &mut TypeTreeNode, mut depth: usize) -> &mut TypeTreeNode {
         while depth > 0 {
             node = node.children.last_mut().unwrap();
@@ -581,9 +618,7 @@ fn reconstruct_tree(mut flat_nodes: Vec<(u8, TypeTreeNode)>) -> TypeTreeNode {
     let (_, mut root) = flat_nodes.remove(0);
 
     for (level, flat_node) in flat_nodes {
-        access(&mut root, level as usize - 1)
-            .children
-            .push(flat_node);
+        access(&mut root, level - 1).children.push(flat_node);
     }
 
     root
