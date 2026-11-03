@@ -293,11 +293,14 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
-        todo!("{}", self.typetree.dump())
+        Err(Error::custom(format_args!(
+            "Attempting to serialize None for {} {}, which exists in the type tree",
+            self.typetree.m_Type, self.typetree.m_Name
+        )))
     }
 
     fn serialize_some<T: Serialize + ?Sized>(self, value: &T) -> Result<Self::Ok, Self::Error> {
-        todo!("{}", self.typetree.dump())
+        value.serialize(self)
     }
 
     fn serialize_unit(self) -> Result<Self::Ok, Self::Error> {
@@ -685,7 +688,12 @@ impl<W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeStruct
             .iter()
             .enumerate()
             .find(|(_, child)| child.m_Name == key)
-            .unwrap();
+            .ok_or_else(|| {
+                Error::custom(format_args!(
+                    "field {key} isn't in type {}",
+                    self.typetree.m_Type
+                ))
+            })?;
 
         if found_index != self.index {
             let fields: Vec<_> = self
@@ -716,6 +724,17 @@ impl<W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeStruct
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
+        if self.index != self.typetree.children.len() {
+            let missing: Vec<_> = self.typetree.children[self.index..]
+                .iter()
+                .map(|child| format!("{} {}", child.m_Type, child.m_Name))
+                .collect();
+            return Err(Error::custom(format_args!(
+                "Missing fields of type {}: {}",
+                self.typetree.m_Type,
+                missing.join(", "),
+            )));
+        }
         if self.requires_align {
             self.writer.align::<4>()?;
         }
