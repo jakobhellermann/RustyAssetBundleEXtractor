@@ -44,13 +44,14 @@ bitflags! {
     }
 }
 
-// bitflags! {
-//     struct StorageBlockFlags: u32 {
-//         const CompressionTypeMask = 0x3f;
-//         const Streamed = 0x40;
-//         const Encrypted = 0x100;
-//     }
-// }
+bitflags! {
+    /// The flags of a storage block in the blocks info.
+    struct StorageBlockFlags: u32 {
+        const COMPRESSION_TYPE_MASK = 0x3f;
+        const STREAMED = 0x40;
+        const ENCRYPTED = 0x100;
+    }
+}
 
 #[derive(Debug, Eq, PartialEq, TryFromPrimitive, Clone, Copy)]
 #[repr(u32)]
@@ -249,8 +250,8 @@ fn write_fs<W: Write + Seek>(
         let mut block_infos = Vec::new();
 
         let flags = match compression {
-            CompressionType::Lz4hc => ArchiveFlags::empty().bits(),
-            _ => ArchiveFlags::BLOCKS_AND_DIRECTORY_INFO_COMBINED.bits(),
+            CompressionType::None | CompressionType::Lzma => StorageBlockFlags::STREAMED.bits(),
+            _ => 0,
         } | compression as u32;
 
         match compression {
@@ -368,10 +369,12 @@ fn write_block<W: Write>(
     block_data: &[u8],
     block_flags: u32,
 ) -> Result<(), std::io::Error> {
-    if (block_flags & 0x100) > 0 {
+    if (block_flags & StorageBlockFlags::ENCRYPTED.bits()) > 0 {
         todo!();
     }
-    match CompressionType::try_from(block_flags & 0x3F).unwrap() {
+    match CompressionType::try_from(block_flags & StorageBlockFlags::COMPRESSION_TYPE_MASK.bits())
+        .unwrap()
+    {
         CompressionType::None => {
             writer.write_all(block_data)?;
         }
@@ -700,7 +703,9 @@ fn decompress_block<R: Read + Seek, W: Write>(
     #[allow(unused)] index: usize,
     #[allow(unused)] decryptor: Option<&ArchiveStorageDecryptor>,
 ) -> Result<(), Error> {
-    match CompressionType::try_from(block.flags & 0x3F).map_err(|_| invalid_data_generic())? {
+    match CompressionType::try_from(block.flags & StorageBlockFlags::COMPRESSION_TYPE_MASK.bits())
+        .map_err(|_| invalid_data_generic())?
+    {
         #[cfg(not(feature = "compression-lzma"))]
         CompressionType::Lzma => {
             return Err(std::io::Error::new(
@@ -736,7 +741,7 @@ fn decompress_block<R: Read + Seek, W: Write>(
         CompressionType::Lz4 | CompressionType::Lz4hc => {
             let mut compressed = reader.read_bytes_sized(block.compressed_size as usize)?;
 
-            if block.flags & 0x100 > 0 {
+            if block.flags & StorageBlockFlags::ENCRYPTED.bits() > 0 {
                 decryptor.ok_or_else(|| invalid_data("Bundle contains encrypted blocks, but doesn't have encryption enabled in header"))?;
                 // UnityCN encryption
                 decryptor.unwrap().decrypt_block(

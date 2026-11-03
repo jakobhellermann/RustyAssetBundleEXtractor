@@ -3,6 +3,7 @@
 | 0-uncompressed | `BuildAssetBundleOptions.UncompressedAssetBundle` | None        |
 | 1-default      | `BuildAssetBundleOptions.None`                    | lzma        |
 | 2-chunkbased   | `BuildAssetBundleOptions.ChunkBasedCompression`   | lz4hc       |
+| lz4runtime     | `chunkbased-2022.3.18f1` recompressed with `AssetBundle.RecompressAssetBundleAsync(…, BuildCompression.LZ4Runtime)` in the 2022.3.62f3 editor | lz4 |
 
 
 ```cs
