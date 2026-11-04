@@ -184,24 +184,60 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
     );
 
     deserialize_by!(deserialize_i8, "SInt8", ReadBytesExt::read_i8, visit_i8);
-    deserialize_by!(
-        deserialize_i16,
-        ("SInt16" | "short"),
-        ReadBytesExt::read_i16::<B>,
-        visit_i16
-    );
-    deserialize_by!(
-        deserialize_i32,
-        ("SInt32" | "int"),
-        ReadBytesExt::read_i32<B>,
-        visit_i32
-    );
-    deserialize_by!(
-        deserialize_i64,
-        ("SInt64" | "long long"),
-        ReadBytesExt::read_i64<B>,
-        visit_i64
-    );
+
+    /// Reads any signed integer node up to i16's width, visited at the node's width.
+    fn deserialize_i16<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        let requires_align = self.typetree.requires_align();
+        let value: V::Value = match self.typetree.classify() {
+            Kind::I8 => visitor.visit_i8::<Error>(self.reader.read_i8()?)?,
+            Kind::I16 => visitor.visit_i16::<Error>(self.reader.read_i16::<B>()?)?,
+            _ => return Err(Error::invalid_typetree_type(self.typetree, "i16")),
+        };
+        if requires_align {
+            self.reader.align4()?;
+        }
+        Ok(value)
+    }
+
+    /// Reads any signed integer node up to i32's width, visited at the node's width.
+    fn deserialize_i32<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        let requires_align = self.typetree.requires_align();
+        let value: V::Value = match self.typetree.classify() {
+            Kind::I8 => visitor.visit_i8::<Error>(self.reader.read_i8()?)?,
+            Kind::I16 => visitor.visit_i16::<Error>(self.reader.read_i16::<B>()?)?,
+            Kind::I32 => visitor.visit_i32::<Error>(self.reader.read_i32::<B>()?)?,
+            _ => return Err(Error::invalid_typetree_type(self.typetree, "i32")),
+        };
+        if requires_align {
+            self.reader.align4()?;
+        }
+        Ok(value)
+    }
+
+    /// Reads any signed integer node up to i64's width, visited at the node's width.
+    fn deserialize_i64<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        let requires_align = self.typetree.requires_align();
+        let value: V::Value = match self.typetree.classify() {
+            Kind::I8 => visitor.visit_i8::<Error>(self.reader.read_i8()?)?,
+            Kind::I16 => visitor.visit_i16::<Error>(self.reader.read_i16::<B>()?)?,
+            Kind::I32 => visitor.visit_i32::<Error>(self.reader.read_i32::<B>()?)?,
+            Kind::I64 => visitor.visit_i64::<Error>(self.reader.read_i64::<B>()?)?,
+            _ => return Err(Error::invalid_typetree_type(self.typetree, "i64")),
+        };
+        if requires_align {
+            self.reader.align4()?;
+        }
+        Ok(value)
+    }
 
     deserialize_by!(
         deserialize_f32,
@@ -801,6 +837,66 @@ mod tests {
             m_Name: name.to_owned(),
             children,
             ..Default::default()
+        }
+    }
+
+    #[derive(Debug, serde_derive::Deserialize)]
+    struct WideValue {
+        wide: i64,
+    }
+
+    #[test]
+    fn i64_reads_every_signed_integer() {
+        for (ty, bytes, expected) in [
+            ("SInt8", 0x7f_i8.to_le_bytes().to_vec(), 0x7f),
+            ("short", 0x1234_i16.to_le_bytes().to_vec(), 0x1234),
+            ("int", 100_i32.to_le_bytes().to_vec(), 100),
+            ("SInt64", (-5_i64).to_le_bytes().to_vec(), -5),
+        ] {
+            let typetree = node("WideValue", "value", vec![node(ty, "wide", vec![])]);
+            let value: WideValue = from_slice::<_, byteorder::LE>(&bytes, &typetree).expect(ty);
+            assert_eq!(value.wide, expected, "{ty}");
+        }
+    }
+
+    struct Width(&'static str);
+    struct WidthVisitor;
+    impl<'de> serde::de::Visitor<'de> for WidthVisitor {
+        type Value = &'static str;
+        fn expecting(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+            f.write_str("an integer")
+        }
+        fn visit_i8<E>(self, _: i8) -> Result<Self::Value, E> {
+            Ok("i8")
+        }
+        fn visit_i16<E>(self, _: i16) -> Result<Self::Value, E> {
+            Ok("i16")
+        }
+        fn visit_i32<E>(self, _: i32) -> Result<Self::Value, E> {
+            Ok("i32")
+        }
+        fn visit_i64<E>(self, _: i64) -> Result<Self::Value, E> {
+            Ok("i64")
+        }
+    }
+    impl<'de> serde::Deserialize<'de> for Width {
+        fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+            d.deserialize_any(WidthVisitor).map(Width)
+        }
+    }
+
+    #[test]
+    fn generic_deserialization_keeps_width() {
+        for (ty, len, expected) in [
+            ("SInt8", 1, "i8"),
+            ("short", 2, "i16"),
+            ("int", 4, "i32"),
+            ("SInt64", 8, "i64"),
+        ] {
+            let typetree = node(ty, "value", vec![]);
+            let bytes = vec![0; len];
+            let Width(width) = from_slice::<_, byteorder::LE>(&bytes, &typetree).expect(ty);
+            assert_eq!(width, expected, "{ty}");
         }
     }
 
