@@ -309,7 +309,7 @@ impl UnityClass {
             .then(|| reader.read_u16::<LittleEndian>())
             .transpose()?;
         let release_root_node = flags
-            .contains(TpkUnityClassFlags::HAS_EDITOR_ROOT_NODE)
+            .contains(TpkUnityClassFlags::HAS_RELEASE_ROOT_NODE)
             .then(|| reader.read_u16::<LittleEndian>())
             .transpose()?;
         Ok(UnityClass {
@@ -587,6 +587,34 @@ fn reconstruct_tree(mut flat_nodes: Vec<(u8, TypeTreeNode)>) -> TypeTreeNode {
     }
 
     root
+}
+
+#[cfg(test)]
+mod unity_class_tests {
+    use super::UnityClass;
+
+    #[test]
+    fn unity_class_reads_each_root_under_its_own_flag() {
+        for (flags, editor_root, release_root) in [
+            (0, None, None),
+            (64, Some(1), None),
+            (128, None, Some(2)),
+            (192, Some(1), Some(2)),
+        ] {
+            // name, base, flags, the announced roots, then a marker the reader must not consume
+            let mut data = vec![0, 0, 0, 0, flags];
+            for root in [editor_root, release_root].into_iter().flatten() {
+                data.extend(u16::to_le_bytes(root));
+            }
+            data.extend([0xFF, 0xFF]);
+
+            let mut reader = data.as_slice();
+            let class = UnityClass::read(&mut reader).unwrap();
+            assert_eq!(class.editor_root_node, editor_root, "flags {flags}");
+            assert_eq!(class.release_root_node, release_root, "flags {flags}");
+            assert_eq!(reader, [0xFF, 0xFF], "flags {flags}");
+        }
+    }
 }
 
 #[cfg(all(test, feature = "embed-tpk"))]
