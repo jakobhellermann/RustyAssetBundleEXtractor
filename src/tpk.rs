@@ -767,7 +767,7 @@ mod format_tests {
 #[cfg(all(test, feature = "embed-tpk"))]
 mod commonstring_tests {
     use super::TpkTypeTreeBlob;
-    use crate::commonstring::COMMONSTRING;
+    use crate::commonstring::common_string_table;
     use std::collections::BTreeMap;
 
     /// `src/commonstring.rs` is generated from the TPK via `just update-commonstring`,
@@ -775,16 +775,25 @@ mod commonstring_tests {
     #[test]
     fn commonstring_matches_tpk() {
         let tpk = TpkTypeTreeBlob::embedded();
-        let mut tpk_map = BTreeMap::new();
         for (version, entries) in &tpk.common_string.version_information {
+            let mut tpk_map = BTreeMap::new();
             for entry in entries {
                 let s = tpk.string_buffer[entry.string as usize].as_str();
                 if let Some(prev) = tpk_map.insert(entry.offset as u32, s) {
                     assert_eq!(prev, s, "offset {} in {version}", entry.offset);
                 }
             }
+            assert_eq!(common_string_table(version).unwrap(), &tpk_map, "{version}");
         }
-
-        assert_eq!(*COMMONSTRING, tpk_map);
+        // Unity renamed LoadableReference to LoadableObjectId under the same offset, which
+        // a single flat table cannot represent
+        assert_eq!(
+            common_string_table(&"6000.5.0a8".parse().unwrap()).unwrap()[&1209],
+            "LoadableReference"
+        );
+        assert_eq!(
+            common_string_table(&"6000.6.0a3".parse().unwrap()).unwrap()[&1209],
+            "LoadableObjectId"
+        );
     }
 }

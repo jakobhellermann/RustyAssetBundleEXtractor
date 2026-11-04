@@ -75,12 +75,11 @@ use std::str::Utf8Error;
 
 use crate::objects::pptr::{FileId, PathId};
 use crate::objects::{ClassId, ClassIdType, PPtr};
-use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt};
-use crate::serde_typetree;
+use crate::read_ext::{ReadSeekUrexExt, ReadUrexExt, invalid_data};
 use crate::tpk::TpkTypeTreeBlob;
 use crate::typetree::{TypeTreeNode, TypeTreeProvider};
-use crate::unity_version::UnityVersion;
 use crate::write_ext::{WriteExt, WriteSeekExt};
+use crate::{UnityVersion, serde_typetree};
 use bitflags::bitflags;
 use byteorder::{BigEndian, ByteOrder, LittleEndian, ReadBytesExt, WriteBytesExt};
 
@@ -240,6 +239,7 @@ impl SerializedType {
         header: &SerializedFileHeader,
         m_EnableTypeTree: bool,
         isRefType: bool,
+        unity_version: Option<&UnityVersion>,
     ) -> Result<SerializedType, std::io::Error> {
         let mut typ = SerializedType {
             m_ClassID: ClassId::UnknownType,
@@ -283,6 +283,11 @@ impl SerializedType {
                 typ.m_Type = Some(TypeTreeNode::blob_from_reader::<T, B>(
                     reader,
                     header.m_Version,
+                    unity_version.ok_or_else(|| {
+                        invalid_data(
+                            "typetree blobs reference common strings, which need a Unity version",
+                        )
+                    })?,
                 )?);
             } else {
                 typ.m_Type = Some(TypeTreeNode::from_reader::<T, B>(reader, header.m_Version)?);
@@ -718,18 +723,39 @@ impl SerializedFile {
         reader: &mut T,
     ) -> Result<SerializedFile, std::io::Error> {
         let header = SerializedFileHeader::from_reader::<T>(reader)?;
+        Self::read_endianed(reader, header, None)
+    }
 
+    /// Read a serialized file with a fallback, if the stored version is `0.0.0`.
+    pub fn from_reader_with_version<T: std::io::Read + std::io::Seek>(
+        reader: &mut T,
+        version: &UnityVersion,
+    ) -> Result<SerializedFile, std::io::Error> {
+        let header = SerializedFileHeader::from_reader::<T>(reader)?;
+        Self::read_endianed(reader, header, Some(version))
+    }
+
+    fn read_endianed<T: std::io::Read + std::io::Seek>(
+        reader: &mut T,
+        header: SerializedFileHeader,
+        bundle_version: Option<&UnityVersion>,
+    ) -> Result<SerializedFile, std::io::Error> {
         match header.m_Endianess {
-            Endianness::Little => {
-                SerializedFile::from_reader_endianed::<T, LittleEndian>(reader, header)
+            Endianness::Little => SerializedFile::from_reader_endianed::<T, LittleEndian>(
+                reader,
+                header,
+                bundle_version,
+            ),
+            Endianness::Big => {
+                SerializedFile::from_reader_endianed::<T, BigEndian>(reader, header, bundle_version)
             }
-            Endianness::Big => SerializedFile::from_reader_endianed::<T, BigEndian>(reader, header),
         }
     }
 
     fn from_reader_endianed<T, B>(
         reader: &mut T,
         header: SerializedFileHeader,
+        bundle_version: Option<&UnityVersion>,
     ) -> Result<SerializedFile, std::io::Error>
     where
         T: std::io::Read + std::io::Seek,
@@ -740,7 +766,7 @@ impl SerializedFile {
         if header.m_Version >= 9 {
             let unity_version = reader.read_cstr()?;
             m_UnityVersion = if unity_version == "0.0.0" {
-                None
+                bundle_version.cloned()
             } else {
                 Some(
                     unity_version
@@ -767,7 +793,15 @@ impl SerializedFile {
         // Read Types
         let typeCount = reader.read_i32::<B>()?;
         let m_Types: Vec<SerializedType> = (0..typeCount)
-            .map(|_| SerializedType::from_reader::<T, B>(reader, &header, m_EnableTypeTree, false))
+            .map(|_| {
+                SerializedType::from_reader::<T, B>(
+                    reader,
+                    &header,
+                    m_EnableTypeTree,
+                    false,
+                    m_UnityVersion.as_ref(),
+                )
+            })
             .collect::<Result<Vec<_>, _>>()?;
 
         let m_bigIDEnabled = None;
@@ -804,7 +838,13 @@ impl SerializedFile {
             m_RefTypes = Some(
                 (0..refTypesCount)
                     .map(|_| {
-                        SerializedType::from_reader::<T, B>(reader, &header, m_EnableTypeTree, true)
+                        SerializedType::from_reader::<T, B>(
+                            reader,
+                            &header,
+                            m_EnableTypeTree,
+                            true,
+                            m_UnityVersion.as_ref(),
+                        )
                     })
                     .collect::<Result<_, _>>()?,
             );

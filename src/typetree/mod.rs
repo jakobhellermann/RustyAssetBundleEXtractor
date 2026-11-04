@@ -8,12 +8,13 @@ pub mod typetree_cache;
 use md4::Digest;
 pub use provider::{NullTypeTreeProvider, TypeTreeProvider};
 
-use crate::commonstring::COMMONSTRING;
+use crate::commonstring::common_string_table;
 use crate::read_ext::{ReadUrexExt, invalid_data};
+use crate::unity_version::UnityVersion;
 use crate::write_ext::WriteExt;
 use bitflags::bitflags;
 use byteorder::{ByteOrder, ReadBytesExt, WriteBytesExt};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::io::{Read, Seek, Write};
 
 bitflags! {
@@ -141,12 +142,14 @@ impl TypeTreeNode {
     pub fn blob_from_reader<R: std::io::Read + std::io::Seek, B: ByteOrder>(
         reader: &mut R,
         version: u32,
+        unity_version: &UnityVersion,
     ) -> Result<TypeTreeNode, std::io::Error> {
         // originally a list with level slicing
         // reordered here to fit the newer tree structure
         let node_size = if version >= 19 { 32 } else { 24 };
         let node_count = reader.read_i32::<B>()?;
         let string_buffer_size = reader.read_i32::<B>()?;
+        let common_strings = common_string_table(unity_version)?;
 
         let mut node_reader = std::io::Cursor::new(
             reader.read_bytes_sized((node_size as usize).saturating_mul(node_count as usize))?,
@@ -157,6 +160,7 @@ impl TypeTreeNode {
         fn read_string<R: std::io::Read + std::io::Seek>(
             string_buffer_reader: &mut R,
             value: u32,
+            common_strings: &BTreeMap<u32, &'static str>,
         ) -> Result<String, std::io::Error> {
             // TODO - cache strings
             let isOffset = (value & 0x80000000) == 0;
@@ -166,7 +170,7 @@ impl TypeTreeNode {
             }
             let offset = value & 0x7FFFFFFF;
 
-            match COMMONSTRING.get(&offset) {
+            match common_strings.get(&offset) {
                 Some(ret) => Ok(ret.to_string()),
                 None => Err(invalid_data(format!(
                     "unknown common string offset {offset}; common string table is incomplete"
@@ -182,10 +186,12 @@ impl TypeTreeNode {
                 let m_Type = read_string::<std::io::Cursor<Vec<u8>>>(
                     &mut string_buffer_reader,
                     node_reader.read_u32::<B>()?,
+                    common_strings,
                 )?;
                 let m_Name = read_string::<std::io::Cursor<Vec<u8>>>(
                     &mut string_buffer_reader,
                     node_reader.read_u32::<B>()?,
+                    common_strings,
                 )?;
                 let m_ByteSize = node_reader.read_i32::<B>()?;
                 node_reader.read_i32::<B>()?; // m_Index, derived from node order on write
