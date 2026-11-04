@@ -1348,8 +1348,14 @@ fn write_serialized_endianed<'a, W: Write + Seek, B: ByteOrder>(
     if version >= 20 {
         let ref_types = serialized.m_RefTypes.as_deref().unwrap();
         writer.write_i32::<B>(ref_types.len() as i32)?;
-        for _ in ref_types {
-            todo!();
+        for ty in ref_types {
+            ty.write::<_, B>(
+                writer.by_ref(),
+                version,
+                true,
+                serialized.m_EnableTypeTree,
+                common_offset_map,
+            )?;
         }
     }
 
