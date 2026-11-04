@@ -461,8 +461,9 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
                 requires_align: self.requires_align,
                 marker: PhantomData,
                 mode: SerializerMapMode::Typed {
-                    last_item: None,
-                    index: 0,
+                    pending_key: String::new(),
+                    next_index: 0,
+                    out_of_order: Vec::new(),
                 },
             }),
         }
@@ -600,8 +601,9 @@ pub struct SerializerMap<'cx, W, B> {
 
 enum SerializerMapMode<'cx> {
     Typed {
-        last_item: Option<&'cx TypeTreeNode>,
-        index: usize,
+        pending_key: String,
+        next_index: usize,
+        out_of_order: Vec<(usize, Vec<u8>)>,
     },
     Map {
         key_type: &'cx TypeTreeNode,
@@ -627,39 +629,10 @@ impl<'cx, W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeMap
 
     fn serialize_key<T: Serialize + ?Sized>(&mut self, key: &T) -> Result<(), Self::Error> {
         match &mut self.mode {
-            SerializerMapMode::Typed { last_item, index } => {
-                let mut key_name = String::new();
+            SerializerMapMode::Typed { pending_key, .. } => {
                 key.serialize(StringSerializer {
-                    string: &mut key_name,
+                    string: pending_key,
                 })?;
-
-                let (found_index, item) = self
-                    .typetree
-                    .children
-                    .iter()
-                    .enumerate()
-                    .find(|(_, child)| child.m_Name == key_name)
-                    .unwrap();
-
-                if found_index != *index {
-                    let fields: Vec<_> = self
-                        .typetree
-                        .children
-                        .iter()
-                        .map(|child| format!("{} {}", child.m_Type, child.m_Name))
-                        .collect();
-                    return Err(Error::custom(format_args!(
-                        "Unexpected field order in type {}:\nExpected {}\nFound {} at index {}",
-                        self.typetree.m_Type,
-                        fields.join(", "),
-                        key_name,
-                        *index,
-                    )));
-                }
-
-                *last_item = Some(item);
-                *index += 1;
-
                 Ok(())
             }
             SerializerMapMode::Map { key_type, .. } => key.serialize(&mut Serializer {
@@ -672,17 +645,22 @@ impl<'cx, W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeMap
     }
 
     fn serialize_value<T: Serialize + ?Sized>(&mut self, value: &T) -> Result<(), Self::Error> {
-        match self.mode {
-            SerializerMapMode::Typed { last_item, index } => {
-                let child = last_item.unwrap();
-
-                value.serialize(&mut Serializer {
-                    typetree: child,
-                    writer: self.writer,
-                    marker: self.marker,
-                    requires_align: child.requires_align(),
-                })?;
-                Ok(())
+        match &mut self.mode {
+            SerializerMapMode::Typed {
+                pending_key,
+                next_index,
+                out_of_order,
+            } => {
+                let key = std::mem::take(pending_key);
+                write_struct_field::<W, B>(
+                    self.typetree,
+                    self.writer,
+                    next_index,
+                    out_of_order,
+                    &key,
+                    self.marker,
+                    value,
+                )
             }
             SerializerMapMode::Map { value_type, .. } => value.serialize(&mut Serializer {
                 typetree: value_type,
@@ -694,8 +672,101 @@ impl<'cx, W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeMap
     }
 
     fn end(mut self) -> Result<Self::Ok, Self::Error> {
+        if let SerializerMapMode::Typed {
+            next_index,
+            ref out_of_order,
+            ..
+        } = self.mode
+        {
+            if let Some(missing) = missing_struct_fields(self.typetree, next_index, out_of_order) {
+                return Err(Error::custom(format_args!(
+                    "Missing fields of type {}: {}",
+                    self.typetree.m_Type, missing,
+                )));
+            }
+        }
         self.align_if(self.requires_align)
     }
+}
+
+/// Write one field of a struct, regardless of the order they appear in.
+/// Out-of-order fields get buffered until they're expected.
+fn write_struct_field<W: Write + Seek, B: ByteOrder + 'static>(
+    typetree: &TypeTreeNode,
+    writer: &mut W,
+    next_index: &mut usize,
+    out_of_order: &mut Vec<(usize, Vec<u8>)>,
+    key: &str,
+    marker: PhantomData<B>,
+    value: &(impl Serialize + ?Sized),
+) -> Result<(), Error> {
+    let (found_index, child_type) = typetree
+        .children
+        .iter()
+        .enumerate()
+        .find(|(_, child)| child.m_Name == key)
+        .ok_or_else(|| {
+            Error::custom(format_args!(
+                "field {key} isn't in type {}",
+                typetree.m_Type
+            ))
+        })?;
+    if found_index < *next_index || out_of_order.iter().any(|(index, _)| *index == found_index) {
+        return Err(Error::custom(format_args!(
+            "duplicate field {key} of type {}",
+            typetree.m_Type
+        )));
+    }
+
+    if found_index == *next_index {
+        value.serialize(&mut Serializer {
+            typetree: child_type,
+            writer,
+            marker,
+            requires_align: child_type.requires_align(),
+        })?;
+        *next_index += 1;
+        // drain buffered fields that follow contiguously
+        while out_of_order
+            .first()
+            .is_some_and(|(index, _)| *index == *next_index)
+        {
+            let (_, bytes) = out_of_order.remove(0);
+            writer.write_all(&bytes)?;
+            *next_index += 1;
+        }
+        return Ok(());
+    }
+
+    let mut buffer = std::io::Cursor::new(Vec::new());
+    value.serialize(&mut Serializer {
+        typetree: child_type,
+        writer: &mut buffer,
+        marker,
+        requires_align: child_type.requires_align(),
+    })?;
+    let at = out_of_order.partition_point(|(index, _)| *index < found_index);
+    out_of_order.insert(at, (found_index, buffer.into_inner()));
+
+    Ok(())
+}
+
+fn missing_struct_fields(
+    typetree: &TypeTreeNode,
+    next_index: usize,
+    out_of_order: &[(usize, Vec<u8>)],
+) -> Option<String> {
+    if out_of_order.is_empty() && next_index == typetree.children.len() {
+        return None;
+    }
+    let missing: Vec<_> = typetree
+        .children
+        .iter()
+        .enumerate()
+        .filter(|(index, _)| *index >= next_index && !out_of_order.iter().any(|(i, _)| i == index))
+        .map(|(_, child)| format!("{} {}", child.m_Type, child.m_Name))
+        .collect();
+    Some(missing.join(", "))
 }
 
 /// Fields are deserialized in the typetree order, regardless of the declaration order of the struct.
@@ -721,86 +792,27 @@ impl<W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeStruct
 
     fn serialize_field<T: Serialize + ?Sized>(
         &mut self,
-        key: &'static str,
+        key: &str,
         value: &T,
     ) -> Result<(), Self::Error> {
-        let (found_index, child_type) = self
-            .typetree
-            .children
-            .iter()
-            .enumerate()
-            .find(|(_, child)| child.m_Name == key)
-            .ok_or_else(|| {
-                Error::custom(format_args!(
-                    "field {key} isn't in type {}",
-                    self.typetree.m_Type
-                ))
-            })?;
-        if found_index < self.next_index
-            || self
-                .out_of_order
-                .iter()
-                .any(|(index, _)| *index == found_index)
-        {
-            return Err(Error::custom(format_args!(
-                "duplicate field {key} of type {}",
-                self.typetree.m_Type
-            )));
-        }
-
-        if found_index == self.next_index {
-            value.serialize(&mut Serializer {
-                typetree: child_type,
-                writer: self.writer,
-                marker: self.marker,
-                requires_align: child_type.requires_align(),
-            })?;
-            self.next_index += 1;
-            // drain buffered fields that follow contiguously
-            while self
-                .out_of_order
-                .first()
-                .is_some_and(|(index, _)| *index == self.next_index)
-            {
-                let (_, bytes) = self.out_of_order.remove(0);
-                self.writer.write_all(&bytes)?;
-                self.next_index += 1;
-            }
-            return Ok(());
-        }
-
-        let mut buffer = std::io::Cursor::new(Vec::new());
-        value.serialize(&mut Serializer {
-            typetree: child_type,
-            writer: &mut buffer,
-            marker: self.marker,
-            requires_align: child_type.requires_align(),
-        })?;
-        let at = self
-            .out_of_order
-            .partition_point(|(index, _)| *index < found_index);
-        self.out_of_order
-            .insert(at, (found_index, buffer.into_inner()));
-
-        Ok(())
+        write_struct_field::<W, B>(
+            self.typetree,
+            self.writer,
+            &mut self.next_index,
+            &mut self.out_of_order,
+            key,
+            self.marker,
+            value,
+        )
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        if !self.out_of_order.is_empty() || self.next_index != self.typetree.children.len() {
-            let missing: Vec<_> = self
-                .typetree
-                .children
-                .iter()
-                .enumerate()
-                .filter(|(index, _)| {
-                    *index >= self.next_index && !self.out_of_order.iter().any(|(i, _)| i == index)
-                })
-                .map(|(_, child)| format!("{} {}", child.m_Type, child.m_Name))
-                .collect();
+        if let Some(missing) =
+            missing_struct_fields(self.typetree, self.next_index, &self.out_of_order)
+        {
             return Err(Error::custom(format_args!(
                 "Missing fields of type {}: {}",
-                self.typetree.m_Type,
-                missing.join(", "),
+                self.typetree.m_Type, missing,
             )));
         }
         if self.requires_align {
@@ -817,7 +829,7 @@ impl<W: Write, B: ByteOrder> serde::ser::SerializeStructVariant for &mut Seriali
 
     fn serialize_field<T: Serialize + ?Sized>(
         &mut self,
-        key: &'static str,
+        key: &str,
         value: &T,
     ) -> Result<(), Self::Error> {
         todo!("{}", self.typetree.dump())
@@ -1201,5 +1213,56 @@ mod tests {
                 "9223372036854775808 does not fit SInt64 value",
             ]
         );
+    }
+
+    #[test]
+    fn map_fields_write_in_typetree_order() {
+        let typetree = node(
+            "Pair",
+            "value",
+            vec![
+                node("UInt32", "first", vec![]),
+                node("UInt32", "second", vec![]),
+            ],
+        );
+        let value = serde_json::json!({ "second": 2, "first": 1 });
+        let bytes = to_vec::<_, byteorder::LE>(&value, &typetree).unwrap();
+        assert_eq!(bytes, [1_u32.to_le_bytes(), 2_u32.to_le_bytes()].concat());
+    }
+
+    #[test]
+    fn map_missing_fields_reject_instead_of_short_writing() {
+        let typetree = node(
+            "Pair",
+            "value",
+            vec![
+                node("UInt32", "first", vec![]),
+                node("UInt32", "second", vec![]),
+            ],
+        );
+        let value = serde_json::json!({ "second": 2 });
+        let error = to_vec::<_, byteorder::LE>(&value, &typetree)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "Missing fields of type Pair: UInt32 first");
+    }
+
+    #[test]
+    fn map_unknown_fields_error_instead_of_panicking() {
+        let typetree = node(
+            "Pair",
+            "value",
+            vec![
+                node("UInt32", "first", vec![]),
+                node("UInt32", "second", vec![]),
+            ],
+        );
+        let value = serde_json::json!({ "first": 1, "second": 2, "third": 3 });
+        let error =
+            std::panic::catch_unwind(|| to_vec::<_, byteorder::LE>(&value, &typetree).map(|_| ()))
+                .unwrap_or_else(|_| panic!("serializing an unknown map field panics"))
+                .unwrap_err()
+                .to_string();
+        assert_eq!(error, "field third isn't in type Pair");
     }
 }
