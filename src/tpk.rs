@@ -155,7 +155,7 @@ impl TpkFile {
             TpkCompressionType::Lzma => return Err(Error::UnsupportedCompression("lzma")),
             #[cfg(feature = "compression-lzma")]
             TpkCompressionType::Lzma => {
-                let mut uncompressed = vec![0; self.uncompressed_size as usize];
+                let mut uncompressed = Vec::with_capacity(self.uncompressed_size as usize);
                 lzma_rs::lzma_decompress_with_options(
                     &mut self.compressed_bytes.as_slice(),
                     &mut uncompressed,
@@ -174,7 +174,7 @@ impl TpkFile {
             TpkCompressionType::Brotli => return Err(Error::UnsupportedCompression("brotli")),
             #[cfg(feature = "tpk-compression-brotli")]
             TpkCompressionType::Brotli => {
-                let mut uncompressed = vec![0; self.uncompressed_size as usize];
+                let mut uncompressed = Vec::with_capacity(self.uncompressed_size as usize);
                 brotli::BrotliDecompress(&mut self.compressed_bytes.as_slice(), &mut uncompressed)?;
                 Cow::Owned(uncompressed)
             }
@@ -613,5 +613,71 @@ mod commonstring_tests {
         for (off, s) in COMMONSTRING.iter() {
             assert_eq!(tpk_map.get(off).copied(), Some(*s), "offset {off}");
         }
+    }
+}
+
+#[cfg(all(
+    test,
+    any(feature = "compression-lzma", feature = "tpk-compression-brotli")
+))]
+mod decompress_tests {
+    use super::{TpkCompressionType, TpkDataType, TpkFile, UnityVersion};
+
+    /// A type tree blob with one unity version, no classes and one string.
+    fn blob() -> Vec<u8> {
+        let mut blob = Vec::new();
+        blob.extend(1234i64.to_le_bytes()); // creation time
+        blob.extend(1i32.to_le_bytes()); // version count
+        blob.extend(0x07E6_0003_0001_0301u64.to_le_bytes()); // 2022.3.1f1
+        blob.extend(0i32.to_le_bytes()); // class count
+        blob.extend(0i32.to_le_bytes()); // common string version count
+        blob.extend(0i32.to_le_bytes()); // common string index count
+        blob.extend(0i32.to_le_bytes()); // node count
+        blob.extend(1i32.to_le_bytes()); // string count
+        blob.extend(b"\x04Base");
+        blob
+    }
+
+    fn assert_reads_blob(compression_type: TpkCompressionType, compressed_bytes: Vec<u8>) {
+        let blob = blob();
+        let tpk = TpkFile {
+            compression_type,
+            data_type: TpkDataType::TypeTreeInformation,
+            compressed_size: compressed_bytes.len() as i32,
+            uncompressed_size: blob.len() as i32,
+            compressed_bytes,
+        };
+
+        assert_eq!(tpk.decompress().unwrap(), blob);
+
+        let tree = tpk.as_type_tree().unwrap().unwrap();
+        assert_eq!(tree.creation_time, 1234);
+        let version: UnityVersion = "2022.3.1f1".parse().unwrap();
+        assert_eq!(tree.versions, [version]);
+        assert_eq!(tree.string_buffer, ["Base"]);
+    }
+
+    #[test]
+    #[cfg(feature = "compression-lzma")]
+    fn lzma_decompresses_to_blob() {
+        let mut compressed = Vec::new();
+        lzma_rs::lzma_compress_with_options(
+            &mut blob().as_slice(),
+            &mut compressed,
+            &lzma_rs::compress::Options {
+                unpacked_size: lzma_rs::compress::UnpackedSize::SkipWritingToHeader,
+            },
+        )
+        .unwrap();
+        assert_reads_blob(TpkCompressionType::Lzma, compressed);
+    }
+
+    #[test]
+    #[cfg(feature = "tpk-compression-brotli")]
+    fn brotli_decompresses_to_blob() {
+        let mut compressed = Vec::new();
+        brotli::BrotliCompress(&mut blob().as_slice(), &mut compressed, &Default::default())
+            .unwrap();
+        assert_reads_blob(TpkCompressionType::Brotli, compressed);
     }
 }
