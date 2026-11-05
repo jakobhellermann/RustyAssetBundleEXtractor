@@ -23,7 +23,7 @@ fn main() -> Result<()> {
         if paths.len() > 1 {
             println!("=== {path} ===");
         }
-        let data = &mut File::open(&path)?;
+        let data = &mut File::open(path)?;
 
         if let Ok(mut reader) =
             BundleFileReader::from_reader(&mut *data, &ExtractionConfig::default())
@@ -55,7 +55,7 @@ fn get_all(
     let mut all = transforms
         .values()
         .filter(|transform| transform.m_Father.is_null())
-        .map(|root| get(root, &file, tpk, data, 0))
+        .map(|root| get(root, &file, tpk, data))
         .collect::<Result<Vec<_>>>()?;
     all.sort_by(|a, b| a.name.cmp(&b.name));
     Ok(all)
@@ -66,15 +66,14 @@ fn get(
     file: &SerializedFile,
     tpk: &impl TypeTreeProvider,
     reader: &mut (impl Read + Seek),
-    indent: usize,
 ) -> Result<HierarchyObject> {
-    let go = root.m_GameObject.deref_local(&file, tpk)?.read(reader)?;
+    let go = root.m_GameObject.deref_local(file, tpk)?.read(reader)?;
     let mut children = root
         .m_Children
         .iter()
         .map(|child| {
-            let child = child.deref_local(&file, tpk)?.read(reader)?;
-            get(&child, file, tpk, reader, indent + 1)
+            let child = child.deref_local(file, tpk)?.read(reader)?;
+            get(&child, file, tpk, reader)
         })
         .collect::<Result<Vec<_>>>()?;
     children.sort_by(|a, b| a.name.cmp(&b.name));

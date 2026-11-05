@@ -23,7 +23,7 @@ fn main() -> Result<()> {
     let mut bundle = BundleFileReader::from_reader(&mut reader, &config)?;
 
     let export_dir = Path::new("out");
-    std::fs::create_dir_all(&export_dir)?;
+    std::fs::create_dir_all(export_dir)?;
 
     while let Some(mut file) = bundle.next_serialized() {
         let data = file.read()?;

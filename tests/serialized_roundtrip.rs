@@ -37,7 +37,7 @@ fn all_fixtures_roundtrip_byte_exact() {
             let com =
                 serializedfile::build_common_offset_map(&tt, file.m_UnityVersion.as_ref().unwrap());
             let mut out = Cursor::new(Vec::new());
-            serializedfile::write_serialized(&mut out, &file, &bytes, &com).unwrap();
+            serializedfile::write_serialized(&mut out, &file, bytes, &com).unwrap();
             let out = out.into_inner();
 
             assert_eq!(out.len(), bytes.len(), "{ctx}: length differs");

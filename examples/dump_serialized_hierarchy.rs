@@ -22,7 +22,7 @@ fn main() -> Result<()> {
         if paths.len() > 1 {
             println!("=== {path} ===");
         }
-        let data = &mut File::open(&path)?;
+        let data = &mut File::open(path)?;
 
         if let Ok(mut reader) =
             BundleFileReader::from_reader(&mut *data, &ExtractionConfig::default())
