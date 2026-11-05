@@ -449,6 +449,12 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
             }
             // "ComponentPair" => todo!("{}", self.typetree.dump()),
             "string" => todo!(),
+            _ if is_primitive(self.typetree) => Err(Error::custom(format_args!(
+                "invalid type: a struct of {} fields, expected {} {}",
+                len.map_or("some".to_string(), |len| len.to_string()),
+                self.typetree.m_Type,
+                self.typetree.m_Name,
+            ))),
             _ => Ok(SerializerMap {
                 typetree: self.typetree,
                 writer: self.writer,
@@ -467,6 +473,12 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
         name: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
+        if is_primitive(self.typetree) {
+            return Err(Error::custom(format_args!(
+                "invalid type: struct {name} of {len} fields, expected {} {}",
+                self.typetree.m_Type, self.typetree.m_Name,
+            )));
+        }
         Ok(SerializerStruct {
             typetree: self.typetree,
             writer: self.writer,
@@ -486,6 +498,15 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
         len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         todo!("{}", self.typetree.dump())
+    }
+}
+
+fn is_primitive(node: &TypeTreeNode) -> bool {
+    use crate::typetree::TypetreeNodeKind::*;
+    match node.classify() {
+        Bool | U8 | U16 | U32 | U64 | I8 | I16 | I32 | I64 | Float | Double | Char => true,
+        String | Map | Untyped | Empty | ArrayWrapper | Array | Struct | TodoReferenced
+        | TodoType => false,
     }
 }
 
@@ -1087,6 +1108,29 @@ mod tests {
 
         let value: Pair = from_slice::<_, byteorder::LE>(&bytes, &typetree).unwrap();
         assert_eq!((value.first, value.second), (1, 2));
+    }
+
+    #[test]
+    fn a_struct_for_a_plain_node_rejects_instead_of_writing_nothing() {
+        #[derive(serde_derive::Serialize)]
+        struct Rational {
+            count: i64,
+        }
+        let float = node("float", "seconds", vec![]);
+        let error = to_vec::<_, byteorder::LE>(&Rational { count: 1 }, &float)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(
+            error,
+            "invalid type: struct Rational of 1 fields, expected float seconds"
+        );
+
+        let empty: std::collections::BTreeMap<String, u32> = Default::default();
+        let error = to_vec::<_, byteorder::LE>(&empty, &float).unwrap_err();
+        assert_eq!(
+            error.to_string(),
+            "invalid type: a struct of 0 fields, expected float seconds"
+        );
     }
 
     #[test]
