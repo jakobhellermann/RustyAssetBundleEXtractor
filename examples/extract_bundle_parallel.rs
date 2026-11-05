@@ -42,7 +42,7 @@ fn main() -> Result<()> {
                 friendly_size(file.size as usize)
             );
 
-            let data = bundle.read_at_entry(file)?;
+            let data = bundle.read_entry(file)?;
 
             n_files.fetch_add(1, Ordering::Relaxed);
             total_size.fetch_add(data.len(), Ordering::Relaxed);

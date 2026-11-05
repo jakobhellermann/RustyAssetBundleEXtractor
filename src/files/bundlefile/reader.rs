@@ -4,6 +4,7 @@ use crate::files::bundlefile::{
     read_unityfs_info,
 };
 use crate::files::unityfile::FileEntry;
+use std::borrow::Cow;
 use std::io::{Cursor, Read, Seek, SeekFrom};
 
 use super::ExtractionConfig;
@@ -18,6 +19,7 @@ pub struct BundleFileReader<R> {
     data_offset: u64,
 
     blocks: Vec<StorageBlock>,
+    block_starts: Vec<BlockStart>,
     files: Vec<FileEntry>,
     block_index: usize,
     file_index: isize,
@@ -55,12 +57,14 @@ impl<R: Read + Seek> BundleFileReader<R> {
         let (blocks, files, decryptor) = read_unityfs_info(&mut header, reader.by_ref(), config)?;
 
         let data_offset = reader.stream_position()?;
+        let block_starts = block_starts(&blocks);
         Ok(BundleFileReader {
             header,
             decryptor,
             reader,
             data_offset,
             blocks,
+            block_starts,
             files,
             block_index: 0,
             file_index: -1,
@@ -150,6 +154,12 @@ impl<R: Read + Seek> BundleFileReader<R> {
         Ok(())
     }
 
+    /// The first block whose data reaches past `offset` into the uncompressed stream,
+    /// `blocks.len()` if none does.
+    fn first_block(&self, offset: u64) -> usize {
+        self.block_starts[1..].partition_point(|end| end.uncompressed <= offset)
+    }
+
     pub fn file(&self, file_path: &str) -> Option<&FileEntry> {
         self.files().iter().find(|file| file.path == file_path)
     }
@@ -173,16 +183,16 @@ impl<R: Read + Seek> BundleFileReader<R> {
         file_index: usize,
         file: FileEntry,
     ) -> Result<BundleFileRef<'_, R>, std::io::Error> {
-        let (block_index, block_offset_compressed, block_offset_uncompressed) =
-            scan_file_start(&self.blocks, &file);
+        let block_index = self.first_block(file.offset as u64);
+        let start = self.block_starts[block_index];
 
         self.block_index = block_index;
         self.file_index = file_index as isize;
         self.scratch_pending_clear = 0;
         self.scratch.clear();
-        self.scratch_offset = block_offset_uncompressed as usize;
+        self.scratch_offset = start.uncompressed as usize;
         self.reader
-            .seek(SeekFrom::Start(self.data_offset + block_offset_compressed))?;
+            .seek(SeekFrom::Start(self.data_offset + start.stored))?;
 
         Ok(BundleFileRef {
             path: file.path,
@@ -196,70 +206,83 @@ impl<R: Read + Seek> BundleFileReader<R> {
 
 impl<T: AsRef<[u8]>> BundleFileReader<Cursor<T>> {
     pub fn read_at(&self, path: &str) -> Result<Option<Vec<u8>>, std::io::Error> {
-        self.files()
-            .iter()
-            .find(|entry| entry.path == path)
-            .map(|entry| self.read_at_entry(entry))
+        self.file(path)
+            .map(|entry| self.read_entry(entry).map(Cow::into_owned))
             .transpose()
     }
 
+    #[deprecated(note = "use `read_entry`, which borrows where it can")]
     pub fn read_at_entry(&self, entry: &FileEntry) -> Result<Vec<u8>, std::io::Error> {
+        self.read_entry(entry).map(Cow::into_owned)
+    }
+
+    pub fn read_entry(&self, entry: &FileEntry) -> Result<Cow<'_, [u8]>, std::io::Error> {
+        if entry.size == 0 {
+            return Ok(Cow::Borrowed(&[]));
+        }
+        let stream_end = self.block_starts[self.blocks.len()].uncompressed;
+        if entry.end() as u64 > stream_end {
+            return Err(std::io::Error::other("entry past the end of the blocks"));
+        }
+
         let data = &self.reader.get_ref().as_ref()[self.data_offset as usize..];
-        read_single_file(&self.blocks, entry, data)
+        let (offset, size) = (entry.offset as u64, entry.size as usize);
+        let blocks = self.first_block(offset)..=self.first_block(entry.end() as u64 - 1);
+        let start = self.block_starts[*blocks.start()];
+        let skip = (offset - start.uncompressed) as usize;
+
+        if self.blocks[blocks.clone()].iter().all(stored_as_is) {
+            // consecutive blocks stored as they are hold their uncompressed bytes back to back
+            let at = start.stored as usize + skip;
+            return data
+                .get(at..at + size)
+                .map(Cow::Borrowed)
+                .ok_or_else(|| std::io::Error::other("the archive ends inside an entry"));
+        }
+
+        let end = self.block_starts[*blocks.end() + 1];
+        let mut decoded = Vec::with_capacity((end.uncompressed - start.uncompressed) as usize);
+        let mut reader = Cursor::new(&data[start.stored as usize..]);
+        for index in blocks {
+            super::decompress_block(
+                &mut reader,
+                &mut decoded,
+                &self.blocks[index],
+                index,
+                self.decryptor.as_ref(),
+            )?;
+        }
+
+        decoded.drain(..skip);
+        decoded.truncate(size);
+        Ok(Cow::Owned(decoded))
     }
 }
 
-fn scan_file_start(blocks: &[StorageBlock], file: &FileEntry) -> (usize, u64, u64) {
-    let mut offset_uncompressed = 0;
-    let mut offset_compressed = 0;
-    let mut block_index = 0;
+#[derive(Debug, Clone, Copy)]
+struct BlockStart {
+    stored: u64,
+    uncompressed: u64,
+}
 
-    // PERF: this linear scan on every seek could be avoided if the file block offsets
-    // were computed and saved once at creation
+fn block_starts(blocks: &[StorageBlock]) -> Vec<BlockStart> {
+    let mut start = BlockStart {
+        stored: 0,
+        uncompressed: 0,
+    };
+    let mut starts = Vec::with_capacity(blocks.len() + 1);
+    starts.push(start);
     for block in blocks {
-        if offset_uncompressed + block.uncompressed_size as u64 > file.offset as u64 {
-            break;
-        }
-
-        offset_uncompressed += block.uncompressed_size as u64;
-        offset_compressed += block.compressed_size as u64;
-        block_index += 1;
+        start.stored += block.compressed_size as u64;
+        start.uncompressed += block.uncompressed_size as u64;
+        starts.push(start);
     }
-
-    (block_index, offset_compressed, offset_uncompressed)
+    starts
 }
 
-/// Reads a single file to memory
-fn read_single_file(
-    blocks: &[StorageBlock],
-    file: &FileEntry,
-    data: &[u8],
-) -> Result<Vec<u8>, std::io::Error> {
-    let (mut block_index, block_offset_compressed, block_offset_uncompressed) =
-        scan_file_start(blocks, file);
-
-    let data = &data[block_offset_compressed as usize..];
-    let mut reader = Cursor::new(data);
-
-    let mut skip_read = file.offset as usize - block_offset_uncompressed as usize;
-
-    let mut data = Vec::new();
-    let mut block_offset = block_offset_uncompressed as usize;
-
-    while let Some(block) = blocks.get(block_index) {
-        super::decompress_block(&mut reader, &mut data, block, block_index, None)?;
-        block_index += 1;
-        block_offset += block.uncompressed_size as usize;
-
-        discard_front(&mut data, std::mem::take(&mut skip_read));
-
-        if block_offset > file.end() as usize {
-            break;
-        }
-    }
-    data.truncate(file.size as usize);
-
-    Ok(data)
+fn stored_as_is(block: &StorageBlock) -> bool {
+    let transformed = StorageBlockFlags::COMPRESSION_TYPE_MASK | StorageBlockFlags::ENCRYPTED;
+    block.flags & transformed.bits() == 0
 }
 
 pub struct BundleFileRef<'s, R> {
