@@ -33,6 +33,9 @@ use crate::unity_version::UnityVersion;
 pub struct BundleFileBuilder {
     version: u32,
     unity_version: UnityVersion,
+    /// Whether the header contains the version.
+    /// Addressables write `0.0.0` instead.
+    revision_in_header: bool,
     header_compression: CompressionType,
 
     uncompressed: Vec<u8>,
@@ -44,6 +47,7 @@ impl BundleFileBuilder {
         BundleFileBuilder {
             version,
             unity_version: unity_version.clone(),
+            revision_in_header: true,
             #[cfg(feature = "compression-lz4hc")]
             header_compression: CompressionType::Lz4hc,
             #[cfg(all(not(feature = "compression-lz4hc"), feature = "compression-lz4"))]
@@ -91,6 +95,12 @@ impl BundleFileBuilder {
         self.write(writer, compression)
     }
 
+    /// Leave the header's revision `0.0.0`, like Addressables.
+    pub fn without_revision(mut self) -> Self {
+        self.revision_in_header = false;
+        self
+    }
+
     pub fn write(
         self,
         mut writer: impl Write + Seek,
@@ -100,7 +110,7 @@ impl BundleFileBuilder {
             signature: bundlefile::BundleSignature::UnityFS,
             version: self.version,
             unity_version: "5.x.x".to_owned(),
-            unity_revision: Some(self.unity_version),
+            unity_revision: self.revision_in_header.then(|| self.unity_version.clone()),
             size: 0, // unused
         };
 
@@ -120,6 +130,7 @@ impl BundleFileBuilder {
         header.write(&mut writer)?;
         bundlefile::write_fs(
             &header,
+            Some(&self.unity_version),
             writer,
             self.header_compression,
             compression,

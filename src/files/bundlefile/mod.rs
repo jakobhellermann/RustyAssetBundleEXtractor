@@ -176,6 +176,7 @@ pub fn write_bundle<W: Write + Seek>(
     }
     write_fs(
         header,
+        None,
         writer,
         header_compression,
         compression,
@@ -221,6 +222,7 @@ fn write_fs_iter<W: Write + Seek, R: Read>(
     }
     write_fs(
         header,
+        None,
         writer,
         header_compression,
         compression,
@@ -231,13 +233,22 @@ fn write_fs_iter<W: Write + Seek, R: Read>(
 
 fn write_fs<W: Write + Seek>(
     header: &BundleFileHeader,
+    engine: Option<&UnityVersion>,
     mut writer: W,
     header_compression: CompressionType,
     compression: CompressionType,
     files: &[FileEntry],
     uncompressed_data: &[u8],
 ) -> Result<(), Error> {
-    let use_new_archive_flags = use_new_archive_flags(header, &ExtractionConfig::default())?;
+    // the layout follows the engine the archive is for, named in the header or given
+    let config = ExtractionConfig {
+        fallback_unity_version: match engine {
+            Some(engine) => FallbackUnityVersion::Exact(engine.clone()),
+            None => FallbackUnityVersion::Error,
+        },
+        ..Default::default()
+    };
+    let use_new_archive_flags = use_new_archive_flags(header, &config)?;
     let info_block_flags = match use_new_archive_flags {
         true => (ArchiveFlags::BLOCKS_AND_DIRECTORY_INFO_COMBINED
             | ArchiveFlags::BLOCK_INFO_NEED_PADDING_AT_START)
