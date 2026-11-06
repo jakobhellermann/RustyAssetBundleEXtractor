@@ -472,7 +472,7 @@ impl TpkTypeTreeBlob {
         class_id: ClassId,
         target_version: &UnityVersion,
     ) -> Option<TypeTreeNode> {
-        let version_classes = &self.class_information[&class_id];
+        let version_classes = self.class_information.get(&class_id)?;
 
         let class = version_classes
             .iter()
@@ -613,5 +613,24 @@ mod commonstring_tests {
         for (off, s) in COMMONSTRING.iter() {
             assert_eq!(tpk_map.get(off).copied(), Some(*s), "offset {off}");
         }
+    }
+}
+
+#[cfg(all(test, feature = "embed-tpk"))]
+mod lookup_tests {
+    use super::TpkTypeTreeBlob;
+    use crate::objects::ClassId;
+
+    /// The embedded TPK has no entry for `UnknownType`, the default class id.
+    #[test]
+    fn unknown_class_has_no_typetree() {
+        let tpk = TpkTypeTreeBlob::embedded();
+        let version = "2022.3.0f1".parse().unwrap();
+
+        let gameobject = tpk.get_typetree_node(ClassId::GameObject, &version);
+        assert_eq!(gameobject.unwrap().m_Type, "GameObject");
+
+        let unknown = tpk.get_typetree_node(ClassId::UnknownType, &version);
+        assert!(unknown.is_none());
     }
 }
