@@ -13,10 +13,10 @@ fn main() -> Result<()> {
     let tpk = tpk_file.as_type_tree()?.unwrap();*/
     let tpk = TpkTypeTreeBlob::embedded();
 
-    let version = version
-        .map(|v| v.parse())
-        .transpose()?
-        .unwrap_or(tpk.versions.last().unwrap().clone());
+    let version = match version {
+        Some(version) => version.parse()?,
+        None => tpk.versions.last().unwrap().unity_version()?,
+    };
     let ty = tpk
         .get_typetree_node(ClassId::GameObject, &version)
         .unwrap();

@@ -237,8 +237,8 @@ pub enum TpkDataType {
 #[derive(Debug, Clone)]
 pub struct TpkTypeTreeBlob {
     pub creation_time: i64,
-    pub versions: Vec<UnityVersion>,
-    pub class_information: FxHashMap<ClassId, Vec<(UnityVersion, Option<UnityClass>)>>,
+    pub versions: Vec<TpkVersion>,
+    pub class_information: FxHashMap<ClassId, Vec<(TpkVersion, Option<UnityClass>)>>,
     pub common_string: TpkCommonString,
     pub node_buffer: Vec<TpkUnityNode>,
     pub string_buffer: Vec<String>,
@@ -247,7 +247,7 @@ pub struct TpkTypeTreeBlob {
 #[derive(Debug, Clone)]
 pub struct TpkClassInformation {
     pub id: i32,
-    pub classes: Vec<(UnityVersion, Option<UnityClass>)>,
+    pub classes: Vec<(TpkVersion, Option<UnityClass>)>,
 }
 impl TpkClassInformation {
     pub fn read<R: Read>(reader: &mut R) -> Result<TpkClassInformation> {
@@ -255,7 +255,7 @@ impl TpkClassInformation {
         let count = reader.read_i32::<LittleEndian>()?;
         let mut classes = Vec::with_capacity(count as usize);
         for _ in 0..count {
-            let version = UnityVersion::read_tpk_encoding(reader)?;
+            let version = TpkVersion::read(reader)?;
             let has_class_data = reader.read_u8()? != 0;
             let class = has_class_data
                 .then(|| UnityClass::read(reader))
@@ -324,7 +324,7 @@ impl UnityClass {
 
 #[derive(Debug, Clone)]
 pub struct TpkCommonString {
-    pub version_information: Vec<(UnityVersion, u8)>,
+    pub version_information: Vec<(TpkVersion, u8)>,
     pub string_buffer_indices: Vec<u16>,
 }
 impl TpkCommonString {
@@ -332,7 +332,7 @@ impl TpkCommonString {
         let version_count = reader.read_i32::<LittleEndian>()?;
         let mut version_information = Vec::with_capacity(version_count as usize);
         for _ in 0..version_count {
-            let version = UnityVersion::read_tpk_encoding(reader)?;
+            let version = TpkVersion::read(reader)?;
             let string_count = reader.read_u8()?;
             version_information.push((version, string_count));
         }
@@ -349,6 +349,7 @@ impl TpkCommonString {
     }
 
     pub fn get_count(&self, target_version: &UnityVersion) -> Option<u8> {
+        let target_version = &TpkVersion::from(target_version);
         let mut ret = None;
         for (version, item) in &self.version_information {
             if target_version >= version {
@@ -405,9 +406,23 @@ impl TpkUnityNode {
     }
 }
 
-impl UnityVersion {
-    fn read_tpk_encoding<R: Read>(reader: &mut R) -> Result<UnityVersion> {
-        let version = reader.read_u64::<LittleEndian>()?;
+/// A unity version as stored in a TPK file:
+/// `major << 48 | minor << 32 | build << 16 | type << 8 | build_number`.
+///
+/// Versions compare as these integers, which for the types in [`UnityVersionType`] is the
+/// order of [`UnityVersion`]. Other type bytes are kept as is, and only fail
+/// [`TpkVersion::unity_version`].
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct TpkVersion(pub u64);
+
+impl TpkVersion {
+    fn read<R: Read>(reader: &mut R) -> Result<TpkVersion> {
+        Ok(TpkVersion(reader.read_u64::<LittleEndian>()?))
+    }
+
+    /// Converts to a [`UnityVersion`], failing if the type byte is not a [`UnityVersionType`].
+    pub fn unity_version(self) -> Result<UnityVersion> {
+        let version = self.0;
         let major = ((version >> 48) & 0xFFFF) as u16;
         let minor = ((version >> 32) & 0xFFFF) as u16;
         let build = ((version >> 16) & 0xFFFF) as u16;
@@ -424,6 +439,30 @@ impl UnityVersion {
     }
 }
 
+/// Prints the [`UnityVersion`], or the raw integer if the type byte is not a [`UnityVersionType`].
+impl std::fmt::Debug for TpkVersion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.unity_version() {
+            Ok(version) => std::fmt::Debug::fmt(&version, f),
+            Err(_) => f.debug_tuple("TpkVersion").field(&self.0).finish(),
+        }
+    }
+}
+
+/// Packs a [`UnityVersion`] as a TPK stores it. The
+/// [`trailing_data`](UnityVersion::trailing_data), which TPK versions don't have, is dropped.
+impl From<&UnityVersion> for TpkVersion {
+    fn from(version: &UnityVersion) -> Self {
+        TpkVersion(
+            (version.major as u64) << 48
+                | (version.minor as u64) << 32
+                | (version.build as u64) << 16
+                | (version.typ as u64) << 8
+                | version.build_number as u64,
+        )
+    }
+}
+
 impl TpkTypeTreeBlob {
     pub fn from_reader<R: Read>(reader: &mut R) -> Result<TpkTypeTreeBlob> {
         let creation_time = reader.read_i64::<LittleEndian>()?;
@@ -431,7 +470,7 @@ impl TpkTypeTreeBlob {
         let version_count = reader.read_i32::<LittleEndian>()? as usize;
         let mut versions = Vec::with_capacity(version_count);
         for _ in 0..version_count {
-            versions.push(UnityVersion::read_tpk_encoding(reader)?);
+            versions.push(TpkVersion::read(reader)?);
         }
 
         let class_count = reader.read_i32::<LittleEndian>()? as usize;
@@ -473,6 +512,7 @@ impl TpkTypeTreeBlob {
         target_version: &UnityVersion,
     ) -> Option<TypeTreeNode> {
         let version_classes = &self.class_information[&class_id];
+        let target_version = &TpkVersion::from(target_version);
 
         let class = version_classes
             .iter()
@@ -613,5 +653,151 @@ mod commonstring_tests {
         for (off, s) in COMMONSTRING.iter() {
             assert_eq!(tpk_map.get(off).copied(), Some(*s), "offset {off}");
         }
+    }
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::{TpkTypeTreeBlob, TpkVersion};
+    use crate::objects::ClassId;
+    use crate::{UnityVersion, UnityVersionType};
+
+    fn version(major: u64, minor: u64, build: u64, typ: u64, build_number: u64) -> u64 {
+        major << 48 | minor << 32 | build << 16 | typ << 8 | build_number
+    }
+
+    /// A type tree blob listing `versions`, with class 1 at `class_versions` and the common
+    /// string table at `common_versions`. The `i`th class entry's release root is a node named
+    /// `"{i}"`, and the `i`th common string count is `i`.
+    fn blob(versions: &[u64], class_versions: &[u64], common_versions: &[u64]) -> TpkTypeTreeBlob {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&0_i64.to_le_bytes()); // creation time
+
+        bytes.extend_from_slice(&(versions.len() as i32).to_le_bytes());
+        for v in versions {
+            bytes.extend_from_slice(&v.to_le_bytes());
+        }
+
+        bytes.extend_from_slice(&1_i32.to_le_bytes()); // class count
+        bytes.extend_from_slice(&1_i32.to_le_bytes()); // class id
+        bytes.extend_from_slice(&(class_versions.len() as i32).to_le_bytes());
+        for (i, v) in class_versions.iter().enumerate() {
+            bytes.extend_from_slice(&v.to_le_bytes());
+            bytes.push(1); // has class data
+            bytes.extend_from_slice(&0_u16.to_le_bytes()); // name
+            bytes.extend_from_slice(&0_u16.to_le_bytes()); // base
+            bytes.push(64 | 128); // editor and release root
+            bytes.extend_from_slice(&(i as u16).to_le_bytes());
+            bytes.extend_from_slice(&(i as u16).to_le_bytes());
+        }
+
+        bytes.extend_from_slice(&(common_versions.len() as i32).to_le_bytes());
+        for (i, v) in common_versions.iter().enumerate() {
+            bytes.extend_from_slice(&v.to_le_bytes());
+            bytes.push(i as u8);
+        }
+        bytes.extend_from_slice(&0_i32.to_le_bytes()); // string buffer indices
+
+        bytes.extend_from_slice(&(class_versions.len() as i32).to_le_bytes());
+        for i in 0..class_versions.len() {
+            bytes.extend_from_slice(&(i as u16).to_le_bytes()); // type name
+            bytes.extend_from_slice(&(i as u16).to_le_bytes()); // name
+            bytes.extend_from_slice(&(-1_i32).to_le_bytes()); // byte size
+            bytes.extend_from_slice(&1_i16.to_le_bytes()); // version
+            bytes.push(0); // type flags
+            bytes.extend_from_slice(&0_u32.to_le_bytes()); // meta flag
+            bytes.extend_from_slice(&0_u16.to_le_bytes()); // sub nodes
+        }
+
+        bytes.extend_from_slice(&(class_versions.len() as i32).to_le_bytes());
+        for i in 0..class_versions.len() {
+            let string = i.to_string();
+            bytes.push(string.len() as u8);
+            bytes.extend_from_slice(string.as_bytes());
+        }
+
+        TpkTypeTreeBlob::from_reader(&mut bytes.as_slice()).unwrap()
+    }
+
+    #[test]
+    fn unknown_version_type_is_kept() {
+        // 2.0.0f1, and 2.0.0 with the type bytes 6 and 255
+        let unknown = [
+            version(2, 0, 0, 3, 1),
+            version(2, 0, 0, 6, 1),
+            version(2, 0, 0, 255, 1),
+        ];
+        let known = [version(1, 0, 0, 3, 1)];
+
+        let tpk = blob(&unknown, &known, &known);
+        assert_eq!(tpk.versions.len(), 3);
+
+        let tpk = blob(&known, &unknown, &known);
+        assert_eq!(tpk.class_information[&ClassId(1)].len(), 3);
+
+        let tpk = blob(&known, &known, &unknown);
+        assert_eq!(tpk.common_string.version_information.len(), 3);
+    }
+
+    #[test]
+    fn lookup_compares_tpk_versions() {
+        // 2.0.0a1, 2.0.0f1, 2.0.0 with the type byte 6, 3.0.0f1
+        let versions = [
+            version(2, 0, 0, 0, 1),
+            version(2, 0, 0, 3, 1),
+            version(2, 0, 0, 6, 1),
+            version(3, 0, 0, 3, 1),
+        ];
+        let tpk = blob(&versions, &versions, &versions);
+
+        let experimental = UnityVersion {
+            typ: UnityVersionType::Experimental,
+            ..UnityVersion::new(2, 0, 0)
+        };
+        let requests = [
+            ("1.0.0f1".parse().unwrap(), None),
+            ("2.0.0b1".parse().unwrap(), Some(0)),
+            ("2.0.0f1-a".parse().unwrap(), Some(1)),
+            ("2.0.0p3".parse().unwrap(), Some(1)),
+            (experimental, Some(1)),
+            ("2.1.0f1".parse().unwrap(), Some(2)),
+            ("3.0.0f1".parse().unwrap(), Some(3)),
+        ];
+        for (request, index) in requests {
+            let node = tpk.get_typetree_node(ClassId(1), &request);
+            let name = node.map(|node| node.m_Name);
+            assert_eq!(name, index.map(|i: u8| i.to_string()), "{request}");
+            let count = tpk.common_string.get_count(&request);
+            assert_eq!(count, index, "{request}");
+        }
+    }
+
+    #[test]
+    fn tpk_version_matches_unity_version() {
+        let versions = [
+            "5.6.7f1",
+            "2018.4.2a3",
+            "2018.4.2b1",
+            "2018.4.2f1",
+            "2018.4.2p2",
+            "2018.4.3f1",
+            "2022.1.0f1",
+            "6000.0.50f1",
+        ]
+        .map(|v| v.parse::<UnityVersion>().unwrap());
+
+        for a in &versions {
+            let tpk_version = TpkVersion::from(a);
+            assert_eq!(&tpk_version.unity_version().unwrap(), a);
+            assert_eq!(format!("{tpk_version:?}"), format!("{a:?}"));
+            for b in &versions {
+                let order = tpk_version.partial_cmp(&TpkVersion::from(b));
+                assert_eq!(order, a.partial_cmp(b), "{a} {b}");
+            }
+        }
+
+        let unknown = TpkVersion(version(2, 0, 0, 6, 1));
+        assert!(unknown.unity_version().is_err());
+        assert_eq!(format!("{unknown:?}"), "TpkVersion(562949953422849)");
     }
 }
