@@ -11,6 +11,19 @@ use serde::ser::Impossible;
 use crate::serde_typetree::Error;
 use crate::typetree::TypeTreeNode;
 
+/// `v` in the node's narrower integer type; a value that does not fit is an error, not truncated.
+fn narrow<T: TryFrom<V>, V: std::fmt::Display + Copy>(
+    v: V,
+    node: &TypeTreeNode,
+) -> Result<T, Error> {
+    T::try_from(v).map_err(|_| {
+        Error::custom(format_args!(
+            "{v} does not fit {} {}",
+            node.m_Type, node.m_Name
+        ))
+    })
+}
+
 /// Serialize the given data to typetree bytes
 pub fn to_vec<T: Serialize + ?Sized, B: ByteOrder + 'static>(
     value: &T,
@@ -143,9 +156,9 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
             // "UInt16" | "unsigned short" => self.writer.write_u16::<B>(v as u16)?,
             // "UInt32" | "unsigned int" | "Type*" => self.writer.write_u32::<B>(v as u32)?,
             // "UInt64" | "unsigned long long" | "FileSize" => self.writer.write_u64::<B>(v as u64)?,
-            "SInt8" => self.writer.write_i8(v as i8)?,
-            "SInt16" | "short" => self.writer.write_i16::<B>(v as i16)?,
-            "SInt32" | "int" => self.writer.write_i32::<B>(v as i32)?,
+            "SInt8" => self.writer.write_i8(narrow(v, self.typetree)?)?,
+            "SInt16" | "short" => self.writer.write_i16::<B>(narrow(v, self.typetree)?)?,
+            "SInt32" | "int" => self.writer.write_i32::<B>(narrow(v, self.typetree)?)?,
             "SInt64" | "long long" => self.writer.write_i64::<B>(v)?,
             _ => {
                 return Err(Error::custom(format_args!(
@@ -210,14 +223,16 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
 
     fn serialize_u64(self, v: u64) -> Result<Self::Ok, Self::Error> {
         match self.typetree.m_Type.as_str() {
-            "UInt8" => self.writer.write_u8(v as u8)?,
-            "UInt16" | "unsigned short" => self.writer.write_u16::<B>(v as u16)?,
-            "UInt32" | "unsigned int" | "Type*" => self.writer.write_u32::<B>(v as u32)?,
+            "UInt8" => self.writer.write_u8(narrow(v, self.typetree)?)?,
+            "UInt16" | "unsigned short" => self.writer.write_u16::<B>(narrow(v, self.typetree)?)?,
+            "UInt32" | "unsigned int" | "Type*" => {
+                self.writer.write_u32::<B>(narrow(v, self.typetree)?)?
+            }
             "UInt64" | "unsigned long long" | "FileSize" => self.writer.write_u64::<B>(v)?,
-            "SInt8" => self.writer.write_i8(v as i8)?,
-            "SInt16" | "short" => self.writer.write_i16::<B>(v as i16)?,
-            "SInt32" | "int" => self.writer.write_i32::<B>(v as i32)?,
-            "SInt64" | "long long" => self.writer.write_i64::<B>(v as i64)?,
+            "SInt8" => self.writer.write_i8(narrow(v, self.typetree)?)?,
+            "SInt16" | "short" => self.writer.write_i16::<B>(narrow(v, self.typetree)?)?,
+            "SInt32" | "int" => self.writer.write_i32::<B>(narrow(v, self.typetree)?)?,
+            "SInt64" | "long long" => self.writer.write_i64::<B>(narrow(v, self.typetree)?)?,
             _ => {
                 return Err(Error::custom(format_args!(
                     "invalid type: {}, expected {} {}",
@@ -993,5 +1008,70 @@ impl serde::Serializer for StringSerializer<'_> {
         len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
         unreachable!()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::to_vec;
+    use crate::typetree::TypeTreeNode;
+    use byteorder::LE;
+
+    fn leaf(ty: &str) -> TypeTreeNode {
+        TypeTreeNode {
+            m_Type: ty.to_owned(),
+            m_Name: "value".to_owned(),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn serialize_integer_sizes() {
+        let mut errors = Vec::new();
+        for (ty, min, max) in [
+            ("SInt8", i8::MIN as i64, i8::MAX as i64),
+            ("short", i16::MIN as i64, i16::MAX as i64),
+            ("int", i32::MIN as i64, i32::MAX as i64),
+        ] {
+            let node = leaf(ty);
+            to_vec::<_, LE>(&min, &node).expect(ty);
+            to_vec::<_, LE>(&max, &node).expect(ty);
+            for outside in [min - 1, max + 1] {
+                let error = to_vec::<_, LE>(&outside, &node).unwrap_err();
+                errors.push(error.to_string());
+            }
+        }
+        for (ty, max) in [
+            ("UInt8", u8::MAX as u64),
+            ("UInt16", u16::MAX as u64),
+            ("unsigned int", u32::MAX as u64),
+            ("SInt8", i8::MAX as u64),
+            ("short", i16::MAX as u64),
+            ("int", i32::MAX as u64),
+            ("SInt64", i64::MAX as u64),
+        ] {
+            let node = leaf(ty);
+            to_vec::<_, LE>(&max, &node).expect(ty);
+            let error = to_vec::<_, LE>(&(max + 1), &node).unwrap_err();
+            errors.push(error.to_string());
+        }
+        assert_eq!(
+            errors,
+            [
+                "-129 does not fit SInt8 value",
+                "128 does not fit SInt8 value",
+                "-32769 does not fit short value",
+                "32768 does not fit short value",
+                "-2147483649 does not fit int value",
+                "2147483648 does not fit int value",
+                "256 does not fit UInt8 value",
+                "65536 does not fit UInt16 value",
+                "4294967296 does not fit unsigned int value",
+                "128 does not fit SInt8 value",
+                "32768 does not fit short value",
+                "2147483648 does not fit int value",
+                "9223372036854775808 does not fit SInt64 value",
+            ]
+        );
     }
 }
