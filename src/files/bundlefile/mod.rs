@@ -103,6 +103,7 @@ pub struct BundleFileHeader {
     pub unity_version: String,
     pub unity_revision: Option<UnityVersion>,
     pub size: u32,
+    start: u64,
 }
 
 impl BundleFileHeader {
@@ -120,7 +121,9 @@ impl BundleFileHeader {
         Ok(())
     }
     pub fn from_reader<T: Read + Seek>(reader: &mut T) -> Result<Self, Error> {
+        let start = reader.stream_position()?;
         Ok(BundleFileHeader {
+            start,
             signature: reader.read_cstr()?.parse().map_err(|_| {
                 std::io::Error::new(std::io::ErrorKind::InvalidData, "invalid signature")
             })?,
@@ -619,7 +622,8 @@ fn read_unityfs_info<R: Read + Seek>(
     let use_new_archive_flags = use_new_archive_flags(m_Header, config)?;
 
     //ReadHeader
-    m_Header.size = reader.read_i64::<BigEndian>()? as u32;
+    let bundle_size = reader.read_i64::<BigEndian>()?;
+    m_Header.size = bundle_size as u32;
 
     let block_info = StorageBlock {
         compressed_size: reader.read_u32::<BigEndian>()?,
@@ -627,16 +631,81 @@ fn read_unityfs_info<R: Read + Seek>(
         flags: reader.read_u32::<BigEndian>()?,
     };
 
-    if let BundleSignature::UnityFS = m_Header.signature {
+    // Only the older signatures have a byte here. For UnityFS the block info follows the flags
+    // directly (version 7 pads it to 16 bytes below), so reading a byte would make version 6
+    // bundles, which Unity 2019.4 writes, start one byte late.
+    if !matches!(m_Header.signature, BundleSignature::UnityFS) {
         reader.read_bool()?;
     }
 
     //ReadBlocksInfoAndDirectory
-    // TODO - check for 2019.4, which is version 6
     if m_Header.version >= 7 {
         reader.align(16)?;
-    } // TODO else if version >= (2019, 4)
+    } else if m_Header
+        .unity_revision
+        .as_ref()
+        .is_some_and(|v| v.version_tuple() >= (2019, 4, 0))
+    {
+        // Unity 2019.4 writes version 6 bundles whose block info may or may not be padded to 16
+        // bytes. Prefer the position whose complete metadata fits the declared bundle extent.
+        let start = reader.stream_position()?;
+        let info_size = if block_info.flags & ArchiveFlags::BLOCKS_INFO_AT_THE_END.bits() != 0 {
+            u64::from(block_info.compressed_size)
+        } else {
+            0
+        };
+        let end = u64::try_from(bundle_size)
+            .ok()
+            .and_then(|size| m_Header.start.checked_add(size))
+            .and_then(|end| end.checked_sub(info_size));
+        // A reader that cannot seek from the end gives no extent to check against.
+        let available_end = reader.seek(std::io::SeekFrom::End(0)).ok();
+        reader.seek(std::io::SeekFrom::Start(start))?;
+        if let Some(end) = end.filter(|end| {
+            end.checked_add(info_size)
+                .zip(available_end)
+                .is_some_and(|(end, available_end)| end <= available_end)
+        }) {
+            for position in [start, start.next_multiple_of(16)] {
+                reader.seek(std::io::SeekFrom::Start(position))?;
+                let info = read_unityfs_info_at(
+                    reader,
+                    config,
+                    &block_info,
+                    use_new_archive_flags,
+                    Some(end),
+                );
+                if info.is_ok() {
+                    return info;
+                }
+            }
+            reader.seek(std::io::SeekFrom::Start(start))?;
+        }
+        // The declared size is unreliable: all-zero bytes up to the boundary mean padding.
+        let padding = ((16 - start % 16) % 16) as usize;
+        let mut bytes = vec![0u8; padding];
+        if reader.read_exact(&mut bytes).is_err() || bytes.iter().any(|&b| b != 0) {
+            reader.seek(std::io::SeekFrom::Start(start))?;
+        }
+    }
+    read_unityfs_info_at(reader, config, &block_info, use_new_archive_flags, None)
+}
 
+#[allow(clippy::type_complexity)]
+fn read_unityfs_info_at<R: Read + Seek>(
+    reader: &mut R,
+    config: &ExtractionConfig,
+    block_info: &StorageBlock,
+    use_new_archive_flags: bool,
+    data_end: Option<u64>,
+) -> Result<
+    (
+        Vec<StorageBlock>,
+        Vec<FileEntry>,
+        Option<ArchiveStorageDecryptor>,
+    ),
+    Error,
+> {
     let mut decryptor = None;
 
     let mut blocks_info_bytes = Vec::with_capacity(
@@ -645,9 +714,11 @@ fn read_unityfs_info<R: Read + Seek>(
     if block_info.flags & ArchiveFlags::BLOCKS_INFO_AT_THE_END.bits() != 0 {
         // 0x80 BlocksInfoAtTheEnd
         let position = reader.stream_position()?;
-        // originally reader.length
-        reader.seek(std::io::SeekFrom::End(-(block_info.compressed_size as i64)))?;
-        decompress_block(reader, &mut blocks_info_bytes, &block_info, 0, None)?;
+        match data_end {
+            Some(end) => reader.seek(std::io::SeekFrom::Start(end))?,
+            None => reader.seek(std::io::SeekFrom::End(-(block_info.compressed_size as i64)))?,
+        };
+        decompress_block(reader, &mut blocks_info_bytes, block_info, 0, None)?;
         reader.seek(std::io::SeekFrom::Start(position))?;
     } else {
         // 0x40 BlocksAndDirectoryInfoCombined
@@ -666,7 +737,7 @@ fn read_unityfs_info<R: Read + Seek>(
         decompress_block(
             reader,
             &mut blocks_info_bytes,
-            &block_info,
+            block_info,
             0,
             decryptor.as_ref(),
         )?;
@@ -702,6 +773,46 @@ fn read_unityfs_info<R: Read + Seek>(
         & (block_info.flags & ArchiveFlags::BLOCK_INFO_NEED_PADDING_AT_START.bits() > 0)
     {
         reader.align(16)?;
+    }
+
+    // Empty or shifted metadata can parse at both positions; only an exact fit selects one.
+    if let Some(end) = data_end {
+        let data_size: u64 = m_BlocksInfo.iter().map(|b| b.compressed_size as u64).sum();
+        let uncompressed_size: u64 = m_BlocksInfo
+            .iter()
+            .map(|b| b.uncompressed_size as u64)
+            .sum();
+        let directory_fits = m_DirectoryInfo.iter().all(|entry| {
+            u64::try_from(entry.offset)
+                .ok()
+                .zip(u64::try_from(entry.size).ok())
+                .and_then(|(offset, size)| offset.checked_add(size))
+                .is_some_and(|end| end <= uncompressed_size)
+        });
+        if !directory_fits
+            || !block_info_reader.is_empty()
+            || reader.stream_position()?.checked_add(data_size) != Some(end)
+        {
+            return Err(invalid_data("storage blocks do not fit the bundle extent"));
+        }
+        let data_start = reader.stream_position()?;
+        let mut position = data_start;
+        for block in &m_BlocksInfo {
+            if block.flags & StorageBlockFlags::COMPRESSION_TYPE_MASK.bits()
+                == CompressionType::Lzma as u32
+            {
+                // After the five-byte LZMA properties header, the range coder starts with zero.
+                if block.compressed_size < 6 {
+                    return Err(invalid_data("incomplete LZMA data header"));
+                }
+                reader.seek(std::io::SeekFrom::Start(position + 5))?;
+                if reader.read_u8()? != 0 {
+                    return Err(invalid_data("invalid LZMA range coder prefix"));
+                }
+            }
+            position += u64::from(block.compressed_size);
+        }
+        reader.seek(std::io::SeekFrom::Start(data_start))?;
     }
 
     Ok((m_BlocksInfo, m_DirectoryInfo, decryptor))
