@@ -64,7 +64,7 @@ pub enum CompressionType {
     Lzham = 4,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum BundleSignature {
     UnityArchive,
     UnityWeb,
@@ -95,7 +95,7 @@ impl FromStr for BundleSignature {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct BundleFileHeader {
     pub signature: BundleSignature,
