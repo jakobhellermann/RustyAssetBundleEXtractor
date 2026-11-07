@@ -473,7 +473,8 @@ impl<'a, 'cx, W: Write + Seek, B: ByteOrder + 'static> serde::Serializer
             requires_align: self.requires_align,
             marker: self.marker,
 
-            index: 0,
+            next_index: 0,
+            out_of_order: Vec::new(),
         })
     }
 
@@ -676,13 +677,18 @@ impl<'cx, W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeMap
     }
 }
 
+/// Fields are deserialized in the typetree order, regardless of the declaration order of the struct.
+/// Having the correct order still makes sense, because it doesn't require buffering.
 pub struct SerializerStruct<'cx, W, B> {
     typetree: &'cx TypeTreeNode,
     writer: &'cx mut W,
     requires_align: bool,
     marker: PhantomData<B>,
 
-    index: usize,
+    /// The next expected typetree position to write. Anything after it gets buffered.
+    next_index: usize,
+    /// `(typetree position, bytes)`
+    out_of_order: Vec<(usize, Vec<u8>)>,
 }
 
 impl<W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeStruct
@@ -709,40 +715,66 @@ impl<W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeStruct
                     self.typetree.m_Type
                 ))
             })?;
-
-        if found_index != self.index {
-            let fields: Vec<_> = self
-                .typetree
-                .children
+        if found_index < self.next_index
+            || self
+                .out_of_order
                 .iter()
-                .map(|child| format!("{} {}", child.m_Type, child.m_Name))
-                .collect();
+                .any(|(index, _)| *index == found_index)
+        {
             return Err(Error::custom(format_args!(
-                "Unexpected field order in type {}:\nExpected {}\nFound {} at index {}",
-                self.typetree.m_Type,
-                fields.join(", "),
-                key,
-                self.index,
+                "duplicate field {key} of type {}",
+                self.typetree.m_Type
             )));
         }
 
+        if found_index == self.next_index {
+            value.serialize(&mut Serializer {
+                typetree: child_type,
+                writer: self.writer,
+                marker: self.marker,
+                requires_align: child_type.requires_align(),
+            })?;
+            self.next_index += 1;
+            // drain buffered fields that follow contiguously
+            while self
+                .out_of_order
+                .first()
+                .is_some_and(|(index, _)| *index == self.next_index)
+            {
+                let (_, bytes) = self.out_of_order.remove(0);
+                self.writer.write_all(&bytes)?;
+                self.next_index += 1;
+            }
+            return Ok(());
+        }
+
+        let mut buffer = std::io::Cursor::new(Vec::new());
         value.serialize(&mut Serializer {
             typetree: child_type,
-            writer: self.writer,
+            writer: &mut buffer,
             marker: self.marker,
             requires_align: child_type.requires_align(),
         })?;
-
-        self.index += 1;
+        let at = self
+            .out_of_order
+            .partition_point(|(index, _)| *index < found_index);
+        self.out_of_order
+            .insert(at, (found_index, buffer.into_inner()));
 
         Ok(())
     }
 
     fn end(self) -> Result<Self::Ok, Self::Error> {
-        if self.index != self.typetree.children.len() {
-            let missing: Vec<_> = self.typetree.children[self.index..]
+        if !self.out_of_order.is_empty() || self.next_index != self.typetree.children.len() {
+            let missing: Vec<_> = self
+                .typetree
+                .children
                 .iter()
-                .map(|child| format!("{} {}", child.m_Type, child.m_Name))
+                .enumerate()
+                .filter(|(index, _)| {
+                    *index >= self.next_index && !self.out_of_order.iter().any(|(i, _)| i == index)
+                })
+                .map(|(_, child)| format!("{} {}", child.m_Type, child.m_Name))
                 .collect();
             return Err(Error::custom(format_args!(
                 "Missing fields of type {}: {}",
@@ -1013,16 +1045,68 @@ impl serde::Serializer for StringSerializer<'_> {
 
 #[cfg(test)]
 mod tests {
-    use super::to_vec;
     use crate::typetree::TypeTreeNode;
-    use byteorder::LE;
 
-    fn leaf(ty: &str) -> TypeTreeNode {
+    use super::to_vec;
+    use crate::serde_typetree::from_slice;
+
+    fn node(ty: &str, name: &str, children: Vec<TypeTreeNode>) -> TypeTreeNode {
         TypeTreeNode {
             m_Type: ty.to_owned(),
-            m_Name: "value".to_owned(),
+            m_Name: name.to_owned(),
+            children,
             ..Default::default()
         }
+    }
+
+    #[derive(Debug, serde_derive::Serialize, serde_derive::Deserialize)]
+    struct Pair {
+        second: u32,
+        first: u32,
+    }
+
+    #[test]
+    fn struct_fields_write_in_typetree_order() {
+        let typetree = node(
+            "Pair",
+            "value",
+            vec![
+                node("UInt32", "first", vec![]),
+                node("UInt32", "second", vec![]),
+            ],
+        );
+        let bytes = to_vec::<_, byteorder::LE>(
+            &Pair {
+                second: 2,
+                first: 1,
+            },
+            &typetree,
+        )
+        .unwrap();
+        assert_eq!(bytes, [1_u32.to_le_bytes(), 2_u32.to_le_bytes()].concat());
+
+        let value: Pair = from_slice::<_, byteorder::LE>(&bytes, &typetree).unwrap();
+        assert_eq!((value.first, value.second), (1, 2));
+    }
+
+    #[test]
+    fn missing_fields_reject_instead_of_short_writing() {
+        #[derive(serde_derive::Serialize)]
+        struct OnlySecond {
+            second: u32,
+        }
+        let typetree = node(
+            "Pair",
+            "value",
+            vec![
+                node("UInt32", "first", vec![]),
+                node("UInt32", "second", vec![]),
+            ],
+        );
+        let error = to_vec::<_, byteorder::LE>(&OnlySecond { second: 2 }, &typetree)
+            .unwrap_err()
+            .to_string();
+        assert_eq!(error, "Missing fields of type Pair: UInt32 first");
     }
 
     #[test]
@@ -1033,11 +1117,11 @@ mod tests {
             ("short", i16::MIN as i64, i16::MAX as i64),
             ("int", i32::MIN as i64, i32::MAX as i64),
         ] {
-            let node = leaf(ty);
-            to_vec::<_, LE>(&min, &node).expect(ty);
-            to_vec::<_, LE>(&max, &node).expect(ty);
+            let node = node(ty, "value", vec![]);
+            to_vec::<_, byteorder::LE>(&min, &node).expect(ty);
+            to_vec::<_, byteorder::LE>(&max, &node).expect(ty);
             for outside in [min - 1, max + 1] {
-                let error = to_vec::<_, LE>(&outside, &node).unwrap_err();
+                let error = to_vec::<_, byteorder::LE>(&outside, &node).unwrap_err();
                 errors.push(error.to_string());
             }
         }
@@ -1050,9 +1134,9 @@ mod tests {
             ("int", i32::MAX as u64),
             ("SInt64", i64::MAX as u64),
         ] {
-            let node = leaf(ty);
-            to_vec::<_, LE>(&max, &node).expect(ty);
-            let error = to_vec::<_, LE>(&(max + 1), &node).unwrap_err();
+            let node = node(ty, "value", vec![]);
+            to_vec::<_, byteorder::LE>(&max, &node).expect(ty);
+            let error = to_vec::<_, byteorder::LE>(&(max + 1), &node).unwrap_err();
             errors.push(error.to_string());
         }
         assert_eq!(

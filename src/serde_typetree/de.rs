@@ -349,12 +349,13 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
                 marker: self.marker,
             },
             count: &mut count,
-        });
+        })?;
         if count != 0 {
             return Err(Error::custom(format_args!(
-                "Deserialize implementation did not exhaust sequence: length is {length} but only read {} size",
+                "Deserialize implementation did not exhaust sequence: length is {length} but only read {} size, at {} {}",
                 length - count,
-                //self.typetree.dump_pretty()
+                self.typetree.m_Type,
+                self.typetree.m_Name,
             )));
         }
 
@@ -362,7 +363,7 @@ impl<'de, R: Read + Seek, B: ByteOrder> serde::Deserializer<'de> for &mut Deseri
             self.reader.align4()?;
         }
 
-        sequence
+        Ok(sequence)
     }
 
     fn deserialize_tuple<V>(self, _: usize, visitor: V) -> Result<V::Value, Self::Error>
@@ -898,6 +899,23 @@ mod tests {
             let Width(width) = from_slice::<_, byteorder::LE>(&bytes, &typetree).expect(ty);
             assert_eq!(width, expected, "{ty}");
         }
+    }
+
+    #[test]
+    fn sequence_element_error_covers_no_exhaustion() {
+        let element_type = node("Element", "data", vec![node("SInt64", "value", vec![])]);
+        let array_type = node(
+            "Array",
+            "Array",
+            vec![node("int", "size", vec![]), element_type],
+        );
+        let vector_type = node("vector", "values", vec![array_type]);
+        let bytes = [2_i32.to_le_bytes().as_slice(), &[0xff_u8]].concat();
+
+        let result: Result<Vec<WideValue>, _> =
+            from_slice::<_, byteorder::LE>(&bytes, &vector_type);
+        let error = result.unwrap_err().to_string();
+        assert_eq!(error, "failed to fill whole buffer");
     }
 
     #[test]
