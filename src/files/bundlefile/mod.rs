@@ -616,15 +616,30 @@ fn read_unityfs_info<R: Read + Seek>(
         flags: reader.read_u32::<BigEndian>()?,
     };
 
-    if let BundleSignature::UnityFS = m_Header.signature {
+    // Only the older signatures have a byte here. For UnityFS the block info follows the flags
+    // directly (version 7 pads it to 16 bytes below), so reading a byte would make version 6
+    // bundles, which Unity 2019.4 writes, start one byte late.
+    if !matches!(m_Header.signature, BundleSignature::UnityFS) {
         reader.read_bool()?;
     }
 
     //ReadBlocksInfoAndDirectory
-    // TODO - check for 2019.4, which is version 6
     if m_Header.version >= 7 {
         reader.align(16)?;
-    } // TODO else if version >= (2019, 4)
+    } else if m_Header
+        .unity_revision
+        .as_ref()
+        .is_some_and(|v| v.version_tuple() >= (2019, 4, 0))
+    {
+        // Unity 2019.4 writes version 6 bundles whose block info may or may not be padded to 16
+        // bytes. The padding is all zeros, so any non-zero byte means it is not there.
+        let start = reader.stream_position()?;
+        let padding = ((16 - start % 16) % 16) as usize;
+        let mut bytes = vec![0u8; padding];
+        if reader.read_exact(&mut bytes).is_err() || bytes.iter().any(|&b| b != 0) {
+            reader.seek(std::io::SeekFrom::Start(start))?;
+        }
+    }
 
     let mut decryptor = None;
 
