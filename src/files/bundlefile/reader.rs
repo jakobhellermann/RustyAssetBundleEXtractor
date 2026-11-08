@@ -1,6 +1,7 @@
 use crate::archive_storage_manager::ArchiveStorageDecryptor;
 use crate::files::bundlefile::{
-    BundleFileHeader, BundleSignature, StorageBlock, read_unityfs_info,
+    BundleFileHeader, BundleSignature, CompressionType, StorageBlock, StorageBlockFlags,
+    read_unityfs_info,
 };
 use crate::files::unityfile::FileEntry;
 use std::io::{Cursor, Read, Seek, SeekFrom};
@@ -67,6 +68,18 @@ impl<R: Read + Seek> BundleFileReader<R> {
             scratch: Vec::new(),
             scratch_offset: 0,
         })
+    }
+
+    pub fn compression(&self) -> CompressionType {
+        self.blocks
+            .iter()
+            .flat_map(|block| {
+                CompressionType::try_from(
+                    block.flags & StorageBlockFlags::COMPRESSION_TYPE_MASK.bits(),
+                )
+            })
+            .find(|flags| *flags != CompressionType::None)
+            .unwrap_or(CompressionType::None)
     }
 
     pub fn header(&self) -> &BundleFileHeader {
