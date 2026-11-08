@@ -78,9 +78,7 @@ impl<R: Read + Seek> BundleFileReader<R> {
     }
 
     pub fn serialized_files(&self) -> impl Iterator<Item = &FileEntry> {
-        self.files
-            .iter()
-            .filter(|file| (file.flags & FileEntry::FLAG_SERIALIZEDFILE) != 0)
+        self.files.iter().filter(|file| file.is_serialized())
     }
 
     pub fn main_serializedfile(&self) -> Option<&FileEntry> {
@@ -115,7 +113,7 @@ impl<R: Read + Seek> BundleFileReader<R> {
             .iter()
             .enumerate()
             .skip((self.file_index + 1) as usize)
-            .find(|(_, file)| (file.flags & FileEntry::FLAG_SERIALIZEDFILE) != 0)
+            .find(|(_, file)| file.is_serialized())
             .map(|(index, file)| (index, file.clone()))?;
 
         self.file_index = index as isize;

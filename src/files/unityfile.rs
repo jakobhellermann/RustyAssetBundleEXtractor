@@ -10,6 +10,10 @@ impl FileEntry {
     pub fn end(&self) -> i64 {
         self.offset + self.size
     }
+
+    pub fn is_serialized(&self) -> bool {
+        (self.flags & FileEntry::FLAG_SERIALIZEDFILE) != 0
+    }
 }
 
 impl FileEntry {
