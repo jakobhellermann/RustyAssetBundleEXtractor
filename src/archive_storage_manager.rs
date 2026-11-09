@@ -51,18 +51,23 @@ impl ArchiveStorageDecryptor {
         use byteorder::{BigEndian, ReadBytesExt};
         use std::io::SeekFrom;
 
-        let _unknown = reader.read_u32::<BigEndian>().unwrap();
+        let _unknown = reader.read_u32::<BigEndian>()?;
 
         let info_bytes: [u8; 16] = reader.read_bytes_array::<16>()?;
         let info_key: [u8; 16] = reader.read_bytes_array::<16>()?;
-        reader.seek(SeekFrom::Current(1)).unwrap();
+        reader.seek(SeekFrom::Current(1))?;
 
         let signature_bytes: [u8; 16] = reader.read_bytes_array::<16>()?;
         let signature_key: [u8; 16] = reader.read_bytes_array::<16>()?;
-        reader.seek(SeekFrom::Current(1)).unwrap();
+        reader.seek(SeekFrom::Current(1))?;
 
         let signature: [u8; 16] = decrypt_key(signature_key, signature_bytes, archive_key);
-        assert_eq!(signature, UNITY3D_SIGNATURE);
+        if signature != UNITY3D_SIGNATURE {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                "invalid UnityCN signature",
+            ));
+        }
 
         let data = decrypt_key(info_key, info_bytes, archive_key);
         let data = to_uint4_array(&data, 0);

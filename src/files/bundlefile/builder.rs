@@ -107,6 +107,7 @@ impl BundleFileBuilder {
         compression: CompressionType,
     ) -> Result<(), std::io::Error> {
         let header = BundleFileHeader {
+            start: 0,
             signature: bundlefile::BundleSignature::UnityFS,
             version: self.version,
             unity_version: "5.x.x".to_owned(),
