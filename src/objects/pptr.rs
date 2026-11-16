@@ -67,7 +67,7 @@ impl FileId {
 }
 
 /// Pointer to another object in this or an external [`SerializedFile`]
-#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Serialize, Deserialize, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PPtr {
     /// The [`SerializedFile`] the referenced object belongs to.
     ///
