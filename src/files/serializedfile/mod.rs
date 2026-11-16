@@ -974,9 +974,9 @@ impl SerializedFile {
         })
     }
 
-    fn get_serialized_objectinfo_type(&self, object: &ObjectInfo) -> Option<&TypeTreeNode> {
+    fn get_serialized_type(&self, type_id: i32) -> Option<&TypeTreeNode> {
         if self.m_Header.m_Version >= SerializedFileFormatVersion::REFACTORED_CLASS_ID.bits()
-            && let Some(ty) = &self.m_Types[object.m_TypeID as usize].m_Type
+            && let Some(ty) = &self.m_Types[type_id as usize].m_Type
         {
             return Some(ty);
         }
@@ -1025,13 +1025,21 @@ impl SerializedFile {
         info: &ObjectInfo,
         tpk: &'a impl TypeTreeProvider,
     ) -> Result<Cow<'a, TypeTreeNode>> {
-        match self.get_serialized_objectinfo_type(info) {
+        self.get_typetree_for_type_id(info.m_TypeID, info.m_ClassID, tpk)
+    }
+
+    /// Read the saved typetree if possible, otherwise get it from the [`TypeTreeProvider`]
+    pub fn get_typetree_for_type_id<'a>(
+        &'a self,
+        type_id: i32,
+        class_id: ClassId,
+        tpk: &'a impl TypeTreeProvider,
+    ) -> Result<Cow<'a, TypeTreeNode>> {
+        match self.get_serialized_type(type_id) {
             Some(value) => Ok(Cow::Borrowed(value)),
-            None => {
-                let unity_version = self.unity_version()?;
-                tpk.get_typetree_node(info.m_ClassID, unity_version)
-                    .ok_or(Error::NoTypetree(info.m_ClassID))
-            }
+            None => tpk
+                .get_typetree_node(class_id, self.unity_version()?)
+                .ok_or(Error::NoTypetree(class_id)),
         }
     }
 

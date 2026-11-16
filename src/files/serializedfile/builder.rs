@@ -266,17 +266,11 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         class_id: ClassId,
         type_id: i32,
     ) -> Result<Vec<u8>> {
-        let data = match &self.serialized.m_Types[type_id as usize].m_Type {
-            Some(tt) => serde_typetree::to_vec::<_, LittleEndian>(object, tt),
-            None => {
-                let tt = self
-                    .typetree_provider
-                    .get_typetree_node(class_id, &self.unity_version)
-                    .ok_or(serializedfile::Error::NoTypetree(class_id))?;
-                serde_typetree::to_vec::<_, LittleEndian>(object, &tt)
-            }
-        };
-        Ok(data.map_err(serializedfile::Error::Serialize)?)
+        let tt =
+            self.serialized
+                .get_typetree_for_type_id(type_id, class_id, self.typetree_provider)?;
+        Ok(serde_typetree::to_vec::<_, LittleEndian>(object, &tt)
+            .map_err(serializedfile::Error::Serialize)?)
     }
 
     /// Add an object to the file with the specified meta data.
