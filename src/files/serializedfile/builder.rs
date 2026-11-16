@@ -128,6 +128,17 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         builder.serialized.m_ScriptTypes = file.m_ScriptTypes.clone();
         builder.serialized.m_RefTypes = file.m_RefTypes.clone();
 
+        let same_version = file.m_UnityVersion.as_ref() == Some(unity_version);
+        for (index, ty) in file.m_Types.iter().enumerate() {
+            let reusable = ty.m_ScriptTypeIndex < 0 && (ty.m_Type.is_some() || same_version);
+            if reusable && ty.m_ClassID != ClassId::MonoBehaviour {
+                builder
+                    .types_cache
+                    .entry(ty.m_ClassID)
+                    .or_insert(index as i32);
+            }
+        }
+
         for obj in objects {
             let data = &data[obj.m_Offset as usize..obj.m_Offset as usize + obj.m_Size as usize];
             let res = builder.add_object_inner(obj.clone(), Cow::Borrowed(data));
@@ -227,17 +238,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         }
 
         let info = info.clone();
-        let data = match &self.serialized.m_Types[info.m_TypeID as usize].m_Type {
-            Some(tt) => serde_typetree::to_vec::<_, LittleEndian>(object, tt),
-            None => {
-                let tt = self
-                    .typetree_provider
-                    .get_typetree_node(T::CLASS_ID, &self.unity_version)
-                    .ok_or(serializedfile::Error::NoTypetree(T::CLASS_ID))?;
-                serde_typetree::to_vec::<_, LittleEndian>(object, &tt)
-            }
-        }
-        .map_err(serializedfile::Error::Serialize)?;
+        let data = self.serialize_as(object, T::CLASS_ID, info.m_TypeID)?;
         self.objects.insert(path_id, (info, Cow::Owned(data)));
         Ok(())
     }
@@ -254,15 +255,28 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         class_id: ClassId,
         type_id: i32,
     ) -> Result<()> {
-        let tt = self
-            .typetree_provider
-            .get_typetree_node(class_id, &self.unity_version)
-            .unwrap();
-
-        let data = serde_typetree::to_vec::<_, LittleEndian>(&object, &tt)
-            .map_err(serializedfile::Error::Serialize)?;
-
+        let data = self.serialize_as(object, class_id, type_id)?;
         self.add_object_untyped_with(path_id, class_id, type_id, Cow::Owned(data))
+    }
+
+    /// Serialize with the type tree of `m_Types[type_id]`, or the tpk provider if the file has none.
+    fn serialize_as<T: Serialize>(
+        &self,
+        object: &T,
+        class_id: ClassId,
+        type_id: i32,
+    ) -> Result<Vec<u8>> {
+        let data = match &self.serialized.m_Types[type_id as usize].m_Type {
+            Some(tt) => serde_typetree::to_vec::<_, LittleEndian>(object, tt),
+            None => {
+                let tt = self
+                    .typetree_provider
+                    .get_typetree_node(class_id, &self.unity_version)
+                    .ok_or(serializedfile::Error::NoTypetree(class_id))?;
+                serde_typetree::to_vec::<_, LittleEndian>(object, &tt)
+            }
+        };
+        Ok(data.map_err(serializedfile::Error::Serialize)?)
     }
 
     /// Add an object to the file with the specified meta data.

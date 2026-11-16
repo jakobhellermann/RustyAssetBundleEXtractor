@@ -185,3 +185,30 @@ fn replace_object_at_keeps_the_type_of_a_read_file() {
         file.objects().next().unwrap().m_TypeID
     );
 }
+
+#[test]
+fn add_object_at_reuses_the_type_of_a_read_file() {
+    let version = "2022.3.0f1".parse().unwrap();
+    let tpk = TypeTreeCache::embedded();
+    let common = serializedfile::build_common_offset_map(&tpk.inner, &version);
+    let mut builder = SerializedFileBuilder::new(&version, &tpk, &common, true);
+    builder.add_object_at(1, &text("first")).unwrap();
+    let bytes = builder.write_vec().unwrap();
+
+    let file = SerializedFile::from_reader(&mut Cursor::new(&bytes)).unwrap();
+    let mut builder = SerializedFileBuilder::from_serialized(
+        &version,
+        &file,
+        &bytes,
+        &tpk,
+        &common,
+        file.objects().cloned(),
+    );
+    builder.add_object_at(2, &text("second")).unwrap();
+
+    assert_eq!(builder.serialized.m_Types.len(), file.m_Types.len());
+    assert_eq!(
+        builder.objects[&2].0.m_TypeID,
+        file.objects().next().unwrap().m_TypeID
+    );
+}
