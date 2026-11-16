@@ -321,6 +321,19 @@ impl TypeTreeNode {
         (self.m_MetaFlag.unwrap_or(0) & TransferMetaFlags::ALIGN_BYTES_FLAG.bits()) != 0
     }
 
+    /// Whether this node or any of its descendants has an `m_Type` of `ty`
+    pub fn contains_type(&self, ty: &str) -> bool {
+        self.contains_type_with(|node_ty| node_ty == ty)
+    }
+
+    /// Whether this node or any of its descendants has an `m_Type` matching `matches`
+    pub fn contains_type_with(&self, matches: impl Fn(&str) -> bool) -> bool {
+        fn inner(node: &TypeTreeNode, matches: &dyn Fn(&str) -> bool) -> bool {
+            matches(&node.m_Type) || node.children.iter().any(|child| inner(child, matches))
+        }
+        inner(self, &matches)
+    }
+
     pub fn read<'de, T: serde::Deserialize<'de>, R: Read + Seek, B: ByteOrder>(
         &self,
         reader: &mut R,
