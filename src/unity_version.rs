@@ -5,7 +5,7 @@ use num_enum::TryFromPrimitive;
 /// A parsed unity version.
 ///
 /// Example: `2023.2.18f1`
-#[derive(Clone, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnityVersion {
     pub major: u16,
     pub minor: u16,
@@ -109,7 +109,7 @@ impl FromStr for UnityVersion {
 }
 
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, TryFromPrimitive, PartialEq, Eq, PartialOrd, Hash)]
+#[derive(Copy, Clone, Debug, TryFromPrimitive, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum UnityVersionType {
     Alpha = 0,
     Beta = 1,
