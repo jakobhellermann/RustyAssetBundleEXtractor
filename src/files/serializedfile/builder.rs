@@ -375,6 +375,44 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         })
     }
 
+    /// Enable `.m_EnableTypeTree`, filling in missing types.
+    ///
+    /// Typetrees for monobehaviours get filled according to the `monobehaviour` callback,
+    /// otherwise they are determined using the typetree provider for `source_version`.
+    pub fn fill_typetrees<E: From<Error>>(
+        &mut self,
+        source_version: &UnityVersion,
+        mut monobehaviour: impl FnMut(PPtr) -> Result<TypeTreeNode, E>,
+    ) -> Result<(), E> {
+        self.serialized.m_EnableTypeTree = true;
+
+        for i in 0..self.serialized.m_Types.len() {
+            let ty = &self.serialized.m_Types[i];
+            if ty.m_Type.is_some() {
+                continue;
+            }
+            let class_id = ty.m_ClassID;
+
+            let typetree = match class_id {
+                ClassId::MonoBehaviour => {
+                    let index = usize::try_from(ty.m_ScriptTypeIndex)
+                        .expect("MonoBehaviour types always have scripts");
+                    let script_type = self.serialized.m_ScriptTypes.as_ref().unwrap()[index];
+
+                    monobehaviour(script_type.into())?
+                }
+                _ => self
+                    .typetree_provider
+                    .get_typetree_node(class_id, source_version)
+                    .ok_or(Error::from(serializedfile::Error::NoTypetree(class_id)))?
+                    .into_owned(),
+            };
+
+            self.serialized.m_Types[i].m_Type = Some(typetree);
+        }
+        Ok(())
+    }
+
     /// Add an entry to the `m_Types` of the serialized file
     pub fn add_type_uncached(&mut self, ty: SerializedType) -> i32 {
         self.serialized.add_type(ty)
