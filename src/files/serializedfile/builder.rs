@@ -219,8 +219,27 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
         path_id: PathId,
         object: &T,
     ) -> Result<()> {
-        let type_id = self.get_or_insert_type(T::CLASS_ID);
-        self.add_object_with(object, path_id, T::CLASS_ID, type_id)
+        let (info, _) = self.objects.get(&path_id).ok_or(Error::NoObject(path_id))?;
+        if info.m_ClassID != T::CLASS_ID {
+            self.objects.remove(&path_id);
+            let type_id = self.get_or_insert_type(T::CLASS_ID);
+            return self.add_object_with(object, path_id, T::CLASS_ID, type_id);
+        }
+
+        let info = info.clone();
+        let data = match &self.serialized.m_Types[info.m_TypeID as usize].m_Type {
+            Some(tt) => serde_typetree::to_vec::<_, LittleEndian>(object, tt),
+            None => {
+                let tt = self
+                    .typetree_provider
+                    .get_typetree_node(T::CLASS_ID, &self.unity_version)
+                    .ok_or(serializedfile::Error::NoTypetree(T::CLASS_ID))?;
+                serde_typetree::to_vec::<_, LittleEndian>(object, &tt)
+            }
+        }
+        .map_err(serializedfile::Error::Serialize)?;
+        self.objects.insert(path_id, (info, Cow::Owned(data)));
+        Ok(())
     }
 
     /// Add an object to the serialized file with the specified meta data.
@@ -281,11 +300,10 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     /// - `info.m_TypeID` must correspond to a `m_Types` index
     fn add_object_inner(&mut self, info: ObjectInfo, data: Cow<'a, [u8]>) -> Result<()> {
         let path_id = info.m_PathID;
-        let previous = self.objects.insert(path_id, (info, data));
-        if let Some((previous, _)) = previous {
+        if let Some((previous, _)) = self.objects.get(&path_id) {
             return Err(Error::PathIdAlreadyExists(path_id, previous.m_ClassID));
         }
-
+        self.objects.insert(path_id, (info, data));
         Ok(())
     }
 
@@ -486,6 +504,7 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
 pub enum Error {
     SerializedFile(serializedfile::Error),
     PathIdAlreadyExists(PathId, ClassId),
+    NoObject(PathId),
     IO(std::io::Error),
 }
 
@@ -498,6 +517,9 @@ impl std::fmt::Display for Error {
                 f,
                 "Can't add object {path_id} to SerializeFileBuilder: a {class_id:?} already exists",
             ),
+            Error::NoObject(path_id) => {
+                write!(f, "No object exists at path id {path_id}")
+            }
         }
     }
 }
