@@ -424,15 +424,26 @@ impl<'a, P: TypeTreeProvider> SerializedFileBuilder<'a, P> {
     }
 
     pub fn get_or_insert_external(&mut self, external: &str) -> FileId {
+        self.get_or_insert_external_with(
+            |e| e.pathName == external,
+            || FileIdentifier::new(external.to_owned()),
+        )
+    }
+
+    pub fn get_or_insert_external_identifier(&mut self, external: &FileIdentifier) -> FileId {
+        self.get_or_insert_external_with(|e| e == external, || external.clone())
+    }
+
+    fn get_or_insert_external_with(
+        &mut self,
+        matches: impl Fn(&FileIdentifier) -> bool,
+        create: impl FnOnce() -> FileIdentifier,
+    ) -> FileId {
         // PERF: O(n)
-        let file_id = self
-            .serialized
-            .m_Externals
-            .iter()
-            .enumerate()
-            .find_map(|(i, e)| (e.pathName == external).then_some(FileId::from_externals_index(i)));
-        file_id
-            .unwrap_or_else(|| self.add_external_uncached(FileIdentifier::new(external.to_owned())))
+        match self.serialized.m_Externals.iter().position(matches) {
+            Some(index) => FileId::from_externals_index(index),
+            None => self.add_external_uncached(create()),
+        }
     }
 
     /// The Unity version this file is being built for.
