@@ -677,13 +677,12 @@ impl<'cx, W: Write + Seek, B: ByteOrder + 'static> serde::ser::SerializeMap
             ref out_of_order,
             ..
         } = self.mode
+            && let Some(missing) = missing_struct_fields(self.typetree, next_index, out_of_order)
         {
-            if let Some(missing) = missing_struct_fields(self.typetree, next_index, out_of_order) {
-                return Err(Error::custom(format_args!(
-                    "Missing fields of type {}: {}",
-                    self.typetree.m_Type, missing,
-                )));
-            }
+            return Err(Error::custom(format_args!(
+                "Missing fields of type {}: {}",
+                self.typetree.m_Type, missing,
+            )));
         }
         self.align_if(self.requires_align)
     }
