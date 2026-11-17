@@ -20,6 +20,7 @@ use crate::write_ext::{WriteExt, WriteSeekExt};
 use bitflags::bitflags;
 use byteorder::{BigEndian, ReadBytesExt, WriteBytesExt};
 use num_enum::TryFromPrimitive;
+use rayon::prelude::*;
 use std::io::{Error, Read, Seek, Write};
 use std::str::FromStr;
 
@@ -277,23 +278,26 @@ fn write_fs<W: Write + Seek>(
             _ => {
                 const CHUNK_SIZE: usize = 0x20000;
 
-                let mut reader = uncompressed_data;
-                loop {
-                    let chunk = read_chunk_slice::<CHUNK_SIZE>(&mut reader);
+                // the last block is always shorter than CHUNK_SIZE, possibly empty
+                let full_chunks = uncompressed_data.len() / CHUNK_SIZE;
+                let (full, last) = uncompressed_data.split_at(full_chunks * CHUNK_SIZE);
+                let blocks = full
+                    .par_chunks(CHUNK_SIZE)
+                    .chain(rayon::iter::once(last))
+                    .map(|chunk| {
+                        let mut block = Vec::new();
+                        write_block(&mut block, chunk, flags)?;
+                        Ok((chunk.len(), block))
+                    })
+                    .collect::<Result<Vec<_>, Error>>()?;
 
-                    let start_len = compressed_block_data.len();
-                    write_block(&mut compressed_block_data, chunk, flags)?;
-                    let end_len = compressed_block_data.len();
-                    let compressed_size = end_len - start_len;
+                for (uncompressed_size, block) in blocks {
+                    compressed_block_data.extend_from_slice(&block);
                     block_infos.push(StorageBlock {
-                        compressed_size: compressed_size as u32,
-                        uncompressed_size: chunk.len() as u32,
+                        compressed_size: block.len() as u32,
+                        uncompressed_size: uncompressed_size as u32,
                         flags,
                     });
-
-                    if chunk.len() < CHUNK_SIZE {
-                        break;
-                    }
                 }
             }
         };
